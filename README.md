@@ -8,7 +8,7 @@ Este repositório destina-se à aplicação em React Native com TypeScript, que 
 
 Projeto em fase inicial de configuração e desenvolvimento.
 
-A aplicação base React Native com TypeScript e Expo já existe na pasta `mobile`, com o modelo `blank-typescript`. O arranque desta base num iPhone através do Expo Go foi confirmado pelo responsável pelo teste. A ligação à API ainda não está implementada e não é necessária para abrir o ecrã inicial.
+A aplicação base React Native com TypeScript e Expo já existe na pasta `mobile`, com o modelo `blank-typescript`. O arranque desta base num iPhone através do Expo Go foi confirmado pelo responsável pelo teste. A ligação de diagnóstico à rota Laravel `/up` está implementada e foi validada num iPhone. As funcionalidades de negócio e autenticação ainda não estão ligadas à API.
 
 ## Tecnologias
 
@@ -65,9 +65,9 @@ npm ci
 
 Este comando utiliza o `package-lock.json` versionado. Na preparação inicial do projeto, executar `npm install` para gerar esse ficheiro, caso ainda não exista.
 
-### 3. Configuração futura da API (não necessária para o arranque inicial)
+### 3. Configurar a ligação à API
 
-Os passos de configuração da API abaixo são previstos para uma tarefa posterior. O ficheiro `mobile/.env.example` ainda não existe nesta base; não executar a cópia até ser criado.
+Dentro da pasta `mobile`, copia o modelo de ambiente:
 
 No Windows PowerShell:
 
@@ -81,20 +81,16 @@ No Linux ou macOS:
 cp .env.example .env.local
 ```
 
-### 4. Configurar a ligação à API
-
-Edita o ficheiro `.env.local` com o endereço da tua API local:
+Edita `.env.local` e substitui `IP-DO-COMPUTADOR` pelo IPv4 do computador que executa a API. No Windows, consulta o IPv4 com `ipconfig`.
 
 ```dotenv
-EXPO_PUBLIC_API_URL=http://192.168.1.100:8000/api
+EXPO_PUBLIC_API_URL=http://IP-DO-COMPUTADOR:8000/api
+EXPO_PUBLIC_API_HEALTH_URL=http://IP-DO-COMPUTADOR:8000/up
 ```
 
-Substitui `192.168.1.100` pelo IPv4 do computador que executa a API. No Windows, podes consultar esse endereço com `ipconfig`.
-
-A camada de comunicação com a API deverá ler `process.env.EXPO_PUBLIC_API_URL`. Definir a variável não implementa, por si só, os pedidos à API.
+O ecrã de diagnóstico usa `EXPO_PUBLIC_API_HEALTH_URL`. O endereço base `EXPO_PUBLIC_API_URL` fica preparado para futuros pedidos aos endpoints da API. Estas variáveis são públicas e não devem conter segredos. Depois de alterar `.env.local`, reinicia o Expo.
 
 Num telemóvel físico, `localhost` aponta para o próprio telemóvel. No emulador padrão do Android Studio, utiliza `http://10.0.2.2:8000/api` para aceder à API no computador anfitrião.
-
 ### 5. Disponibilizar a API na rede local
 
 Num terminal separado, dentro da pasta do projeto API, executa:
@@ -195,6 +191,26 @@ A branch de integração deste repositório se chama `develop`, como indicado no
 
 Sempre que uma alteração modificar os passos de instalação ou configuração, este README deve ser atualizado.
 
+## Diagnóstico da API
+
+O ecrã inicial testa a rota de saúde `GET /up`, apresenta estados de carregamento, sucesso ou erro e permite repetir o pedido. O tempo limite do pedido é de 10 segundos.
+
+### Teste com a API ligada
+
+- Dispositivo: iPhone 16 Pro Max, iOS 27.
+- Aplicação: Expo Go.
+- API executada no computador com `php artisan serve --host=0.0.0.0 --port=8000`.
+- Endereço de diagnóstico: `http://192.168.1.104:8000/up`.
+- Resultado: **API acessível · HTTP 200**.
+
+### Teste com a API desligada
+
+1. Foi parado o servidor Laravel com `Ctrl+C`.
+2. No iPhone, foi tocado em **Testar novamente**.
+3. Resultado: o ecrã apresentou o erro **“Tempo limite de 10 segundos excedido. Verifica a API e a rede.”**.
+
+Após o teste, o servidor Laravel foi iniciado novamente.
+
 ## Teste da configuração inicial
 
 - Computador: Windows.
@@ -206,4 +222,4 @@ Sempre que uma alteração modificar os passos de instalação ou configuração
 - Resultado: aplicação iniciada com sucesso, conforme confirmado pelo responsável pelo teste.
 - Ecrã da base: `Open up App.tsx to start working on your app!`.
 
-Esta validação refere-se à base atual deste repositório. A ligação à API e as funcionalidades de negócio serão testadas nas tarefas seguintes.
+Esta validação confirmou a execução inicial da base mobile. A ligação à API foi validada separadamente no teste de diagnóstico acima; as funcionalidades de negócio e a autenticação serão desenvolvidas nas tarefas seguintes.
