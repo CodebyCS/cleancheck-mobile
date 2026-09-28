@@ -8,7 +8,7 @@ Este repositório destina-se à aplicação em React Native com TypeScript, que 
 
 Projeto em fase inicial de configuração e desenvolvimento.
 
-A equipa acordou a utilização de TypeScript nos projetos web e mobile. Este README descreve a configuração prevista com Expo e o modelo `blank-typescript`; nesta pasta existe apenas documentação. Os passos de instalação pressupõem que o código inicial, o `package-lock.json` e o `.env.example` já foram adicionados ao repositório.
+A aplicação base React Native com TypeScript e Expo já existe na pasta `mobile`, com o modelo `blank-typescript`. O arranque desta base num iPhone através do Expo Go foi confirmado pelo responsável pelo teste. A ligação à API ainda não está implementada e não é necessária para abrir o ecrã inicial.
 
 ## Tecnologias
 
@@ -18,7 +18,21 @@ A equipa acordou a utilização de TypeScript nos projetos web e mobile. Este RE
 - Node.js
 - npm
 
-Após a criação da aplicação, as dependências e os requisitos de versão encontram-se no ficheiro `package.json`. O ficheiro `package-lock.json` regista as versões utilizadas pelo projeto.
+As dependências encontram-se em `mobile/package.json` e as versões resolvidas em `mobile/package-lock.json`.
+
+### Versões confirmadas no ambiente local
+
+| Ferramenta | Versão |
+|---|---|
+| Node.js | 26.8.2 |
+| npm | 11.19.1 |
+| Expo CLI | 57.0.27 |
+| Expo (pacote / SDK 57) | 57.0.25 |
+| React Native | 0.86.3 |
+| React | 19.2.3 |
+| TypeScript | 6.0.3 |
+
+Estas versões foram confirmadas através de `node --version`, `npm --version`, `npx expo --version` e `npm ls expo react react-native typescript --depth=0`. O comando `npx expo --version` apresenta a versão da CLI. A versão de Node.js usada no teste é um registo do ambiente local; a versão comum da equipa ainda deve ser definida.
 
 ## Requisitos
 
@@ -29,7 +43,7 @@ Antes de começar, instala:
 - npm, incluído na instalação do Node.js
 - Expo Go num telemóvel compatível com o SDK do projeto, ou um emulador Android configurado através do Android Studio
 
-A API Laravel deve estar em execução para utilizar as funcionalidades que dependem do backend. As versões exatas das ferramentas devem ser registadas quando o ambiente da equipa estiver definido.
+A API Laravel deve estar em execução para utilizar as funcionalidades que dependem do backend. As versões utilizadas neste teste estão registadas acima.
 
 O simulador iOS exige macOS e Xcode. No Windows, é possível testar num iPhone físico através do Expo Go quando as funcionalidades forem compatíveis. Módulos nativos não incluídos no Expo Go exigem um development build.
 
@@ -45,12 +59,15 @@ cd cleancheck-mobile
 ### 2. Instalar as dependências
 
 ```bash
+cd mobile
 npm ci
 ```
 
 Este comando utiliza o `package-lock.json` versionado. Na preparação inicial do projeto, executar `npm install` para gerar esse ficheiro, caso ainda não exista.
 
-### 3. Criar o ficheiro de configuração
+### 3. Configuração futura da API (não necessária para o arranque inicial)
+
+Os passos de configuração da API abaixo são previstos para uma tarefa posterior. O ficheiro `mobile/.env.example` ainda não existe nesta base; não executar a cópia até ser criado.
 
 No Windows PowerShell:
 
@@ -92,7 +109,7 @@ A aplicação mobile comunica com a API e não acede diretamente à base de dado
 
 ### 6. Iniciar a aplicação
 
-Dentro da pasta do projeto mobile, executa:
+Dentro de `cleancheck-mobile/mobile`, executa:
 
 ```bash
 npx expo start
@@ -121,7 +138,7 @@ app.json          Configuração da aplicação Expo
 
 ## Comandos úteis
 
-Depois de gerar a aplicação e instalar as dependências:
+Executar os comandos seguintes dentro de `cleancheck-mobile/mobile`, após instalar as dependências:
 
 Listar os scripts disponíveis:
 
@@ -177,3 +194,16 @@ Após alterações ao `.env.local`, reinicia o Expo e recarrega a aplicação.
 A branch de integração deste repositório se chama `develop`, como indicado no projeto API. Consulta o [CONTRIBUTING.md](./CONTRIBUTING.md) para conhecer as convenções propostas.
 
 Sempre que uma alteração modificar os passos de instalação ou configuração, este README deve ser atualizado.
+
+## Teste da configuração inicial
+
+- Computador: Windows.
+- Dispositivo: iPhone físico.
+- Modelo do iPhone e versão do iOS: iPhone 16 Pro Max / IOS 27.
+- Aplicação utilizada: Expo Go.
+- Comando de arranque: `npx expo start`, executado na pasta `mobile`.
+- Procedimento: iniciar o servidor, ler o QR Code com a Câmara do iPhone e abrir o projeto no Expo Go.
+- Resultado: aplicação iniciada com sucesso, conforme confirmado pelo responsável pelo teste.
+- Ecrã da base: `Open up App.tsx to start working on your app!`.
+
+Esta validação refere-se à base atual deste repositório. A ligação à API e as funcionalidades de negócio serão testadas nas tarefas seguintes.
