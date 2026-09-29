@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { checkApiHealth, healthUrl } from '../services/apiHealth';
 
 type Result = { state: 'idle' | 'loading' } | { state: 'success'; status: number } | { state: 'error'; message: string };
+type DiagnosticsScreenProps = { onBack?: () => void };
 
-export default function DiagnosticsScreen() {
+export default function DiagnosticsScreen({ onBack }: DiagnosticsScreenProps) {
   const [result, setResult] = useState<Result>({ state: 'idle' });
   const active = useRef<AbortController | null>(null);
 
@@ -36,7 +37,14 @@ export default function DiagnosticsScreen() {
   const loading = result.state === 'loading';
   return (
     <ScrollView contentContainerStyle={styles.page} contentInsetAdjustmentBehavior="automatic">
-      <Text style={styles.brand}>Clean&Check</Text>
+      <View style={styles.header}>
+        {onBack ? (
+          <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}>
+            <Text style={styles.back}>‹ Voltar ao login</Text>
+          </Pressable>
+        ) : <View />}
+        <Text style={styles.brand}>Clean&Check</Text>
+      </View>
       <Text style={styles.title}>Diagnóstico da API</Text>
       <View style={styles.card}>
         <Text>Endereço de diagnóstico</Text>
@@ -57,7 +65,9 @@ export default function DiagnosticsScreen() {
 
 const styles = StyleSheet.create({
   page: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 64, backgroundColor: '#F1F6F6' },
-  brand: { color: '#00666B', fontWeight: '700', fontSize: 18, marginBottom: 20 },
+  header: { gap: 20, marginBottom: 20 },
+  back: { color: '#00666B', fontSize: 16, fontWeight: '600' },
+  brand: { color: '#00666B', fontWeight: '700', fontSize: 18 },
   title: { fontSize: 28, fontWeight: '700', color: '#123638', marginBottom: 24 },
   card: { backgroundColor: '#FFFFFF', padding: 20, borderRadius: 16, gap: 16 },
   result: { minHeight: 64, justifyContent: 'center', gap: 10 },
