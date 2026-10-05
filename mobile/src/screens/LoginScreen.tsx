@@ -1,30 +1,40 @@
 import { useState } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { AuthError, login } from '../services/auth';
 
 type LoginScreenProps = {
   onOpenDiagnostics: () => void;
+  onLoginSuccess: () => void;
 };
 
 type ActiveField = 'phone' | 'pin';
 
 const keypadRows = [ ['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['⌫', '0', '✓'] ];
 
-export default function LoginScreen({ onOpenDiagnostics }: LoginScreenProps) {
+type FieldErrors = { phone?: string; pin?: string };
+
+export default function LoginScreen({ onOpenDiagnostics, onLoginSuccess }: LoginScreenProps) {
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
   const [activeField, setActiveField] = useState<ActiveField>('phone');
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [submitError, setSubmitError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // O teclado integrado mantém as teclas grandes e evita abrir o teclado do sistema.
   function pressKey(key: string) {
+    if (loading) return;
     const value = activeField === 'phone' ? phone : pin;
     const update = activeField === 'phone' ? setPhone : setPin;
+    setErrors((current) => ({ ...current, [activeField]: undefined }));
+    setSubmitError('');
 
     if (key === '⌫') {
       update(value.slice(0, -1));
@@ -39,14 +49,29 @@ export default function LoginScreen({ onOpenDiagnostics }: LoginScreenProps) {
     update(`${value}${key}`);
   }
 
-  function submitLogin() {
-    Alert.alert(
-      'Login ainda não configurado',
-      'O ecrã está pronto. A autenticação será ligada quando o contrato da API estiver definido.',
-    );
-  }
+  async function submitLogin() {
+    const nextErrors: FieldErrors = {};
+    if (!phone.trim()) nextErrors.phone = 'Introduz o número de telemóvel.';
+    if (!pin.trim()) nextErrors.pin = 'Introduz o PIN.';
+    setErrors(nextErrors);
+    setSubmitError('');
+    if (Object.keys(nextErrors).length > 0) return;
 
-  const canSubmit = phone.length > 0 && pin.length > 0;
+    setLoading(true);
+    try {
+      // Endpoint, contrato, sessão, logout e perfis aguardam definição com o Carlos.
+      await login({ phone, pin });
+      onLoginSuccess();
+    } catch (error) {
+      if (error instanceof AuthError && error.code === 'INVALID_CREDENTIALS') {
+        setSubmitError('Telemóvel ou PIN incorretos. Confirma os dados e tenta novamente.');
+      } else {
+        setSubmitError('Não foi possível contactar o serviço. Verifica a rede e tenta novamente.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <ScrollView
@@ -80,42 +105,47 @@ export default function LoginScreen({ onOpenDiagnostics }: LoginScreenProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Número de Telemóvel: ${phone || 'vazio'}`}
-          accessibilityState={{ selected: activeField === 'phone' }}
+          accessibilityState={{ selected: activeField === 'phone', disabled: loading }}
+          disabled={loading}
           onPress={() => setActiveField('phone')}
-          style={[styles.field, activeField === 'phone' && styles.fieldActive]}
+          style={[styles.field, !!phone && styles.fieldFilled, activeField === 'phone' && styles.fieldActive, !!errors.phone && styles.fieldError]}
         >
           <Text style={styles.fieldIcon}>📞</Text>
           <Text style={[styles.fieldValue, !phone && styles.placeholder]}>
             {phone || 'Toca aqui e usa o teclado'}
           </Text>
         </Pressable>
+        {errors.phone && <Text accessibilityRole="alert" style={styles.validationError}>{errors.phone}</Text>}
 
         <Text style={styles.label}>PIN de Segurança</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`PIN de Segurança: ${pin.length} algarismos`}
-          accessibilityState={{ selected: activeField === 'pin' }}
+          accessibilityState={{ selected: activeField === 'pin', disabled: loading }}
+          disabled={loading}
           onPress={() => setActiveField('pin')}
-          style={[styles.field, activeField === 'pin' && styles.fieldActive]}
+          style={[styles.field, !!pin && styles.fieldFilled, activeField === 'pin' && styles.fieldActive, !!errors.pin && styles.fieldError]}
         >
           <Text style={styles.fieldIcon}>🔒</Text>
           <Text style={[styles.fieldValue, !pin && styles.placeholder]}>
             {pin ? '● '.repeat(pin.length).trim() : 'Toca aqui e usa o teclado'}
           </Text>
         </Pressable>
+        {errors.pin && <Text accessibilityRole="alert" style={styles.validationError}>{errors.pin}</Text>}
+        {submitError && <Text accessibilityRole="alert" style={styles.submitError}>{submitError}</Text>}
 
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ disabled: !canSubmit }}
-          disabled={!canSubmit}
+          accessibilityState={{ disabled: loading, busy: loading }}
+          disabled={loading}
           onPress={submitLogin}
           style={({ pressed }) => [
             styles.loginButton,
-            !canSubmit && styles.loginButtonDisabled,
-            pressed && canSubmit && styles.loginButtonPressed,
+            loading && styles.loginButtonDisabled,
+            pressed && !loading && styles.loginButtonPressed,
           ]}
         >
-          <Text style={styles.loginButtonText}>ENTRAR</Text>
+          {loading ? <View style={styles.loadingContent}><ActivityIndicator color="#FFFFFF" /><Text style={styles.loginButtonText}>A ENTRAR…</Text></View> : <Text style={styles.loginButtonText}>ENTRAR</Text>}
         </Pressable>
       </View>
 
@@ -127,6 +157,8 @@ export default function LoginScreen({ onOpenDiagnostics }: LoginScreenProps) {
                 key={key}
                 accessibilityRole="button"
                 accessibilityLabel={key === '⌫' ? 'Apagar último algarismo' : key === '✓' ? 'Mudar de campo' : key}
+                accessibilityState={{ disabled: loading }}
+                disabled={loading}
                 onPress={() => pressKey(key)}
                 style={({ pressed }) => [styles.key, pressed && styles.keyPressed]}
               >
@@ -208,9 +240,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   fieldActive: { borderColor: '#1769E8', backgroundColor: '#F7FAFF' },
+  fieldFilled: { borderColor: '#8EB7F3' },
+  fieldError: { borderColor: '#C73535', backgroundColor: '#FFF8F8' },
   fieldIcon: { color: '#1769E8', fontSize: 21, width: 24, textAlign: 'center' },
   fieldValue: { color: '#172B4D', fontSize: 18, fontWeight: '600' },
   placeholder: { color: '#8290A3', fontSize: 18, fontWeight: '400' },
+  validationError: { color: '#A52323', fontSize: 14, marginTop: -5 },
+  submitError: { color: '#A52323', fontSize: 15, lineHeight: 21 },
   loginButton: {
     minHeight: 58,
     alignItems: 'center',
@@ -222,6 +258,7 @@ const styles = StyleSheet.create({
   loginButtonDisabled: { backgroundColor: '#A9C7F4' },
   loginButtonPressed: { backgroundColor: '#0D55C7' },
   loginButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', letterSpacing: 0.5 },
+  loadingContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   keypad: { gap: 8, marginTop: 16 },
   keypadRow: { flexDirection: 'row', gap: 8 },
   key: {
