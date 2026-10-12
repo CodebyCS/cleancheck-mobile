@@ -38,16 +38,16 @@ function isLoginResponse(payload: unknown): payload is LoginResponse {
     && typeof Reflect.get(user, 'role') === 'string';
 }
 
-function loginUrl(): string {
+function apiUrl(path: string): string {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
   if (!apiUrl) throw new AuthError('CONFIGURATION', 'O endereço da API não está configurado.');
-  return `${apiUrl}/mobile/login`;
+  return `${apiUrl}${path}`;
 }
 
 export async function login(credentials: LoginCredentials): Promise<LoginResponse> {
   let response: Response;
   try {
-    response = await fetch(loginUrl(), {
+    response = await fetch(apiUrl('/mobile/login'), {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
@@ -64,4 +64,24 @@ export async function login(credentials: LoginCredentials): Promise<LoginRespons
   if (!isLoginResponse(payload)) throw new AuthError('INVALID_RESPONSE', 'A resposta do serviço não tem o formato esperado.');
   if (Date.parse(payload.expires_at) <= Date.now()) throw new AuthError('SESSION_EXPIRED', 'A sessão recebida já expirou. Inicia sessão novamente.');
   return payload;
+}
+
+export async function logout(token: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(apiUrl('/mobile/logout'), {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    if (error instanceof AuthError) throw error;
+    throw new AuthError('NETWORK', 'Não foi possível contactar o serviço de logout.');
+  }
+  if (!response.ok && response.status !== 401) {
+    throw new AuthError('SERVER', 'O serviço não confirmou o logout.');
+  }
 }

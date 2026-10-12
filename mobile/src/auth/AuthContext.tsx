@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { AuthError, AuthUser, login, LoginCredentials } from '../services/auth';
+import { AuthError, AuthUser, login, LoginCredentials, logout } from '../services/auth';
 import { readAuthSession, removeAuthSession, saveAuthSession } from '../services/authTokenStorage';
 
 type AuthSession = { token: string; user: AuthUser; expiresAt: string };
@@ -45,26 +45,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(nextSession);
   }
 
-  const signOut = useCallback(async () => {
+  const clearLocalSession = useCallback(async () => {
     try {
       await removeAuthSession();
+    } catch {
+      // O estado em memória é limpo mesmo se o armazenamento local falhar.
     } finally {
       setSession(null);
     }
   }, []);
 
+  const signOut = useCallback(async () => {
+    try {
+      if (session?.token) await logout(session.token);
+    } catch {
+      // O logout local é obrigatório mesmo quando a API ou a rede falham.
+    } finally {
+      await clearLocalSession();
+    }
+  }, [session, clearLocalSession]);
+
   const authenticatedFetch = useCallback(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     if (!session || Date.parse(session.expiresAt) <= Date.now()) {
-      await signOut();
+      await clearLocalSession();
       throw new AuthError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
     }
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/json');
     headers.set('Authorization', `Bearer ${session.token}`);
     const response = await fetch(input, { ...init, headers });
-    if (response.status === 401) await signOut();
+    if (response.status === 401) await clearLocalSession();
     return response;
-  }, [session, signOut]);
+  }, [session, clearLocalSession]);
 
   const value = useMemo(() => ({ session, restoring, signIn, signOut, authenticatedFetch }), [session, restoring, signOut, authenticatedFetch]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -14,6 +14,12 @@ A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/login` com os headers `Accept: a
 
 `device_name` é opcional. A resposta de sucesso inclui `token`, `expires_at` e `user` (`id`, `name`, `email`, `role`).
 
+## Logout
+
+A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/logout` com os headers `Accept: application/json` e `Authorization: Bearer <token>`.
+
+Independentemente do resultado do pedido à API, a sessão é sempre removida do Expo SecureStore e do `AuthContext`. Assim, uma falha de rede ou erro da API não impede a saída local do utilizador.
+
 ## Comportamento implementado
 
 - O formulário recolhe email e palavra-passe, valida campos obrigatórios e o formato do email, e apresenta loading durante o pedido.
@@ -25,6 +31,8 @@ A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/login` com os headers `Accept: a
 - Ao iniciar a aplicação, `AuthContext` restaura a sessão guardada. Sessões expiradas ou dados inválidos são removidos; durante o restauro é apresentado um indicador de carregamento.
 - `authenticatedFetch` adiciona `Accept: application/json` e `Authorization: Bearer <token>` aos pedidos autenticados.
 - Antes de um pedido autenticado, uma sessão expirada é removida e o utilizador regressa ao login. Uma resposta HTTP `401` também limpa a sessão guardada e provoca o regresso ao login.
+- Após autenticação, a navegação provisória disponibiliza os separadores **Tarefas**, **Agenda**, **Avisos** e **Perfil**.
+- A ação de logout está disponível no separador **Perfil**. Depois da limpeza da sessão, a aplicação regressa ao ecrã de login.
 - O endereço base é configurado por `EXPO_PUBLIC_API_URL` no `.env.local` da pasta `mobile`; reinicia o Expo depois de o alterar.
 
 ## Limitações e trabalho pendente
@@ -32,6 +40,8 @@ A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/login` com os headers `Accept: a
 A sessão é persistida localmente com Expo SecureStore, mas a renovação do token ainda não está implementada. Quando a sessão expira ou a API devolve `401`, a aplicação remove a sessão local e exige um novo login.
 
 A API atual devolve o campo `role`, mas o endpoint de login não restringe o acesso ao papel `prestador`. Confirmar com a equipa se a API deverá impor essa regra; uma validação apenas no cliente não constitui controlo de acesso seguro.
+
+Os separadores **Agenda**, **Avisos** e **Perfil** fazem parte da navegação provisória. A presença dos separadores não confirma integração dessas áreas com a API.
 
 ## Validação
 

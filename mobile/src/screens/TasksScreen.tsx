@@ -36,7 +36,6 @@ export default function TasksScreen({ tasks, onOpenTask, error }: TasksScreenPro
   const completedToday = today.filter((task) => task.status === 'CONCLUÍDA').length;
 
   return (
-    <View style={styles.screen}>
     <ScrollView contentContainerStyle={styles.page} contentInsetAdjustmentBehavior="automatic">
       <View style={styles.headerRow}>
         <View>
@@ -68,26 +67,10 @@ export default function TasksScreen({ tasks, onOpenTask, error }: TasksScreenPro
         </>
       )}
     </ScrollView>
-    <View style={styles.bottomNavigation} accessibilityRole="tablist">
-      <View style={styles.navItem} accessibilityRole="tab" accessibilityState={{ selected: true }}>
-        <Text style={styles.navIconActive}>✓</Text><Text style={styles.navLabelActive}>Tarefas</Text>
-      </View>
-      <View style={styles.navItem} accessibilityRole="tab" accessibilityState={{ disabled: true }}>
-        <Text style={styles.navIcon}>▦</Text><Text style={styles.navLabel}>Agenda</Text>
-      </View>
-      <View style={styles.navItem} accessibilityRole="tab" accessibilityState={{ disabled: true }}>
-        <Text style={styles.navIcon}>●</Text><Text style={styles.navLabel}>Avisos</Text>
-      </View>
-      <View style={styles.navItem} accessibilityRole="tab" accessibilityState={{ disabled: true }}>
-        <Text style={styles.navIcon}>○</Text><Text style={styles.navLabel}>Perfil</Text>
-      </View>
-    </View>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F5F8FC' },
   page: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 112, backgroundColor: '#F5F8FC' },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   brand: { color: '#1769E8', fontSize: 17, fontWeight: '700', marginBottom: 5 },
@@ -116,10 +99,4 @@ const styles = StyleSheet.create({
   error: { color: '#A52323', fontSize: 16, lineHeight: 22 },
   emptyTitle: { color: '#172B4D', fontSize: 18, fontWeight: '800', marginBottom: 6 },
   emptyText: { color: '#53657D', fontSize: 15, lineHeight: 21, marginBottom: 16 },
-  bottomNavigation: { position: 'absolute', left: 0, right: 0, bottom: 0, minHeight: 78, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 8, paddingBottom: 8, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5EAF2', shadowColor: '#17345E', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: -3 }, elevation: 8 },
-  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  navIcon: { color: '#8290A3', fontSize: 20, fontWeight: '700' },
-  navIconActive: { color: '#1769E8', fontSize: 20, fontWeight: '800' },
-  navLabel: { color: '#8290A3', fontSize: 12, fontWeight: '600' },
-  navLabelActive: { color: '#1769E8', fontSize: 12, fontWeight: '800' },
 });
