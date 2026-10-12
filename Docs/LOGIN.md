@@ -21,17 +21,20 @@ A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/login` com os headers `Accept: a
 - Respostas `422` mapeiam `errors.email` e `errors.password` para os campos correspondentes. Credenciais inválidas também são mostradas no campo email conforme a resposta atual da API.
 - Respostas `429` apresentam uma mensagem de bloqueio temporário.
 - Falhas de rede, outros erros HTTP, URL não configurada e respostas inválidas têm mensagens próprias.
-- `AuthContext` mantém token, utilizador e expiração em memória, sem apresentar o token na interface. O login bem-sucedido abre o ecrã existente.
+- `AuthContext` mantém token, utilizador e expiração no estado da aplicação. O login bem-sucedido guarda a sessão no Expo SecureStore e abre o ecrã existente.
+- Ao iniciar a aplicação, `AuthContext` restaura a sessão guardada. Sessões expiradas ou dados inválidos são removidos; durante o restauro é apresentado um indicador de carregamento.
+- `authenticatedFetch` adiciona `Accept: application/json` e `Authorization: Bearer <token>` aos pedidos autenticados.
+- Antes de um pedido autenticado, uma sessão expirada é removida e o utilizador regressa ao login. Uma resposta HTTP `401` também limpa a sessão guardada e provoca o regresso ao login.
 - O endereço base é configurado por `EXPO_PUBLIC_API_URL` no `.env.local` da pasta `mobile`; reinicia o Expo depois de o alterar.
 
 ## Limitações e trabalho pendente
 
-Por decisão do utilizador, não foi adicionada uma dependência de armazenamento seguro. `AuthTokenStorage` permanece apenas como contrato; o token não persiste nem é restaurado após fechar/reiniciar a app. Logout, renovação de token e sessão persistente também não estão implementados.
+A sessão é persistida localmente com Expo SecureStore, mas a renovação do token ainda não está implementada. Quando a sessão expira ou a API devolve `401`, a aplicação remove a sessão local e exige um novo login.
 
 A API atual devolve o campo `role`, mas o endpoint de login não restringe o acesso ao papel `prestador`. Confirmar com a equipa se a API deverá impor essa regra; uma validação apenas no cliente não constitui controlo de acesso seguro.
 
 ## Validação
 
 - `npm exec tsc -- --noEmit`: passou.
-- O QA validou o serviço com test doubles para sucesso `200`, validação `422`, limite `429` e falha de rede.
+- O QA validou com test doubles o login `200`, erros `422`/`429`, falha de rede e operações do SecureStore. O envio Bearer, restauro, expiração e fluxo `401` foram inspecionados.
 - O projeto não define script `lint`; o serviço não foi testado contra a API real nem num dispositivo nesta validação.
