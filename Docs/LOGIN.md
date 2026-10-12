@@ -1,43 +1,37 @@
-# Login da aplicação mobile
+# Autenticação da aplicação mobile
 
-## Objetivo
+## Contrato de login
 
-Preparar o ecrã e a estrutura de autenticação do Prestador enquanto o contrato da API não está definido. A implementação atual permite validar a interface e o fluxo provisório sem efetuar autenticação real.
+A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/login` com os headers `Accept: application/json` e `Content-Type: application/json`.
 
-## Implementado
+```json
+{
+  "email": "prestador@example.test",
+  "password": "senha-de-exemplo",
+  "device_name": "Clean&Check Mobile"
+}
+```
 
-- Ecrã de login com campos de telemóvel e PIN e teclado numérico.
-- Validação dos campos obrigatórios e estados visuais para campos vazios, preenchidos e com erro.
-- Estado de carregamento no botão **ENTRAR** durante o envio.
-- Mensagens de erro mock para credenciais inválidas e falha de rede.
-- Navegação provisória para o ecrã inicial após um login mock bem-sucedido.
-- Acesso ao ecrã de diagnóstico da API a partir do login.
-- Serviço de autenticação mock, preparado para futura integração com a API.
-- Interface para armazenamento seguro do token, sem persistência de dados nesta fase.
+`device_name` é opcional. A resposta de sucesso inclui `token`, `expires_at` e `user` (`id`, `name`, `email`, `role`).
 
-## Como testar o mock
+## Comportamento implementado
 
-- **Sucesso:** preencher telemóvel e PIN com valores normais.
-- **Credenciais inválidas:** usar o telemóvel `000000000`.
-- **Falha de rede:** usar o telemóvel `999999999`.
+- O formulário recolhe email e palavra-passe, valida campos obrigatórios e o formato do email, e apresenta loading durante o pedido.
+- O serviço valida a estrutura da resposta e a data de expiração antes de aceitar a sessão.
+- Respostas `422` mapeiam `errors.email` e `errors.password` para os campos correspondentes. Credenciais inválidas também são mostradas no campo email conforme a resposta atual da API.
+- Respostas `429` apresentam uma mensagem de bloqueio temporário.
+- Falhas de rede, outros erros HTTP, URL não configurada e respostas inválidas têm mensagens próprias.
+- `AuthContext` mantém token, utilizador e expiração em memória, sem apresentar o token na interface. O login bem-sucedido abre o ecrã existente.
+- O endereço base é configurado por `EXPO_PUBLIC_API_URL` no `.env.local` da pasta `mobile`; reinicia o Expo depois de o alterar.
+
+## Limitações e trabalho pendente
+
+Por decisão do utilizador, não foi adicionada uma dependência de armazenamento seguro. `AuthTokenStorage` permanece apenas como contrato; o token não persiste nem é restaurado após fechar/reiniciar a app. Logout, renovação de token e sessão persistente também não estão implementados.
+
+A API atual devolve o campo `role`, mas o endpoint de login não restringe o acesso ao papel `prestador`. Confirmar com a equipa se a API deverá impor essa regra; uma validação apenas no cliente não constitui controlo de acesso seguro.
 
 ## Validação
 
-- Verificação TypeScript concluída com sucesso.
-- `npm run lint` não foi executado porque o projeto não possui o respetivo script.
-- `npm run build` não foi executado porque o projeto não possui o respetivo script.
-
-## Pendências com o Carlos
-
-- Endpoint e método HTTP do login.
-- Payload e formato dos campos enviados.
-- Estrutura da resposta, incluindo token e utilizador.
-- Códigos HTTP e formato dos erros.
-- Validade e renovação do token.
-- Confirmação de que o utilizador autenticado tem o papel de Prestador.
-- Estratégia definitiva para armazenamento e recuperação da sessão.
-- Funcionamento do logout.
-
-## Fora do âmbito atual
-
-O login real, a gestão definitiva da sessão, o logout e os perfis de utilizador **não estão implementados**. Estas funcionalidades só devem ser concluídas depois de o contrato da API ser definido com o Carlos.
+- `npm exec tsc -- --noEmit`: passou.
+- O QA validou o serviço com test doubles para sucesso `200`, validação `422`, limite `429` e falha de rede.
+- O projeto não define script `lint`; o serviço não foi testado contra a API real nem num dispositivo nesta validação.

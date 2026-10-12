@@ -4,6 +4,6 @@ export interface AuthTokenStorage {
   remove(): Promise<void>;
 }
 
-// Preparado para um adaptador seguro de Expo. A implementação aguarda a definição
-// do token, validade, renovação, sessão e logout com o Carlos. O mock não persiste tokens.
+// Contrato preparado para um adaptador seguro de Expo. Não usar AsyncStorage ou
+// armazenamento público para tokens. A implementação persistente e o logout ficam pendentes.
 export const authTokenStoragePending = true;

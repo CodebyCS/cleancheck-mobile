@@ -3,21 +3,27 @@ import { StatusBar } from 'expo-status-bar';
 import DiagnosticsScreen from './src/screens/DiagnosticsScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import LoginScreen from './src/screens/LoginScreen';
+import { AuthProvider, useAuth } from './src/auth/AuthContext';
 
-export default function App() {
-  // Navegação provisória até ser definido o fluxo real de autenticação e sessão com o Carlos.
+function AppContent() {
+  const { session } = useAuth();
   const [screen, setScreen] = useState<'login' | 'diagnostics' | 'home'>('login');
+  const visibleScreen = session && screen === 'login' ? 'home' : screen;
 
   return (
     <>
       <StatusBar style="dark" />
-      {screen === 'login' && (
-        <LoginScreen onLoginSuccess={() => setScreen('home')} onOpenDiagnostics={() => setScreen('diagnostics')} />
+      {visibleScreen === 'login' && (
+        <LoginScreen onOpenDiagnostics={() => setScreen('diagnostics')} />
       )}
-      {screen === 'diagnostics' && (
+      {visibleScreen === 'diagnostics' && (
         <DiagnosticsScreen onBack={() => setScreen('login')} />
       )}
-      {screen === 'home' && <HomeScreen />}
+      {visibleScreen === 'home' && <HomeScreen />}
     </>
   );
+}
+
+export default function App() {
+  return <AuthProvider><AppContent /></AuthProvider>;
 }
