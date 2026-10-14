@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { AuthError, AuthUser, login, LoginCredentials, logout } from '../services/auth';
+import { AuthError, AuthUser, getCurrentUser, login, LoginCredentials, logout } from '../services/auth';
 import { readAuthSession, removeAuthSession, saveAuthSession } from '../services/authTokenStorage';
+import { Alert } from 'react-native';
 
 type AuthSession = { token: string; user: AuthUser; expiresAt: string };
 type AuthContextValue = {
@@ -17,25 +18,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [restoring, setRestoring] = useState(true);
 
   useEffect(() => {
-    let active = true;
-    async function restore() {
-      try {
-        const stored = await readAuthSession();
-        if (stored && Date.parse(stored.expiresAt) > Date.now()) {
-          if (active) setSession(stored);
-        } else if (stored) {
+  let active = true;
+
+  async function restore() {
+    try {
+      const stored = await readAuthSession();
+
+      if (!active || !stored) return;
+
+      if (Date.parse(stored.expiresAt) <= Date.now()) {
+        await removeAuthSession();
+        return;
+      }
+
+      // Confirma o token e recupera os dados atuais do utilizador.
+      const user = await getCurrentUser(stored.token);
+
+      if (!active) return;
+
+      // O token pode ter expirado enquanto o pedido estava em curso.
+      if (Date.parse(stored.expiresAt) <= Date.now()) {
+        await removeAuthSession();
+        return;
+      }
+
+      const verifiedSession = {
+        ...stored,
+        user,
+      };
+
+      await saveAuthSession(verifiedSession);
+
+      if (active) {
+        setSession(verifiedSession);
+      }
+    } catch (error) {
+      if (!active) return;
+
+      const invalidSession =
+        error instanceof AuthError &&
+        (error.code === 'SESSION_EXPIRED' || error.code === 'FORBIDDEN');
+
+      let message =
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível recuperar a sessão.';
+
+      if (invalidSession) {
+        try {
           await removeAuthSession();
+        } catch {
+          message += ' Também não foi possível limpar a sessão guardada.';
         }
-      } catch {
-        // Uma falha do armazenamento não deve bloquear a abertura do ecrã de login.
-        if (active) setSession(null);
-      } finally {
-        if (active) setRestoring(false);
+      }
+
+      if (active) {
+        setSession(null);
+
+        Alert.alert(
+          'Sessão',
+          invalidSession
+            ? message
+            : `${message} Verifica a ligação e volta a abrir a aplicação para repetir a verificação.`,
+        );
+      }
+    } finally {
+      if (active) {
+        setRestoring(false);
       }
     }
-    restore();
-    return () => { active = false; };
-  }, []);
+  }
+
+  void restore();
+
+  return () => {
+    active = false;
+  };
+}, []);
 
   async function signIn(credentials: LoginCredentials) {
     const response = await login(credentials);
@@ -45,25 +104,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(nextSession);
   }
 
-  const clearLocalSession = useCallback(async () => {
-    try {
-      await removeAuthSession();
-    } catch {
-      // O estado em memória é limpo mesmo se o armazenamento local falhar.
-    } finally {
-      setSession(null);
-    }
-  }, []);
+ const clearLocalSession = useCallback(async () => {
+  await removeAuthSession();
+  setSession(null);
+}, []);
 
   const signOut = useCallback(async () => {
-    try {
-      if (session?.token) await logout(session.token);
-    } catch {
-      // O logout local é obrigatório mesmo quando a API ou a rede falham.
-    } finally {
-      await clearLocalSession();
-    }
-  }, [session, clearLocalSession]);
+  if (session?.token) {
+    await logout(session.token);
+  }
+
+  await clearLocalSession();
+}, [session, clearLocalSession]);
 
   const authenticatedFetch = useCallback(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     if (!session || Date.parse(session.expiresAt) <= Date.now()) {

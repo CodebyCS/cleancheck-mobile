@@ -6,16 +6,20 @@ const SESSION_KEY = 'cleancheck.auth.session';
 
 function isStoredAuthSession(value: unknown): value is StoredAuthSession {
   if (!value || typeof value !== 'object') return false;
+
   const token = Reflect.get(value, 'token');
   const expiresAt = Reflect.get(value, 'expiresAt');
   const user = Reflect.get(value, 'user');
+
   return typeof token === 'string' && token.length > 0
     && typeof expiresAt === 'string' && !Number.isNaN(Date.parse(expiresAt))
     && !!user && typeof user === 'object'
     && ['string', 'number'].includes(typeof Reflect.get(user, 'id'))
     && typeof Reflect.get(user, 'name') === 'string'
     && typeof Reflect.get(user, 'email') === 'string'
-    && typeof Reflect.get(user, 'role') === 'string';
+    && ['admin', 'supervisor', 'prestador'].includes(
+      Reflect.get(user, 'role'),
+    );
 }
 
 export async function saveAuthSession(session: StoredAuthSession): Promise<void> {

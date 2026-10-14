@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 
 export default function ProfileScreen() {
@@ -7,10 +7,23 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(false);
 
   async function handleLogout() {
-    if (loading) return;
-    setLoading(true);
+  if (loading) return;
+
+  setLoading(true);
+
+  try {
     await signOut();
+  } catch (error) {
+    Alert.alert(
+      'Não foi possível concluir a saída',
+      error instanceof Error
+        ? error.message
+        : 'Tenta novamente.',
+    );
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <ScrollView contentContainerStyle={styles.page} contentInsetAdjustmentBehavior="automatic">
@@ -24,7 +37,7 @@ export default function ProfileScreen() {
       <Pressable accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} disabled={loading} onPress={handleLogout} style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed]}>
         {loading ? <><ActivityIndicator color="#A52323" /><Text style={styles.logoutText}>A terminar sessão…</Text></> : <Text style={styles.logoutText}>Terminar sessão</Text>}
       </Pressable>
-      <Text style={styles.note}>A sessão local será removida mesmo que a API esteja indisponível.</Text>
+      <Text style={styles.note}>É necessária ligação à API para confirmar o fim da sessão.</Text>
     </ScrollView>
   );
 }
