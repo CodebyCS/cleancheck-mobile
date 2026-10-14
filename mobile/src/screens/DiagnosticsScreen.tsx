@@ -52,13 +52,17 @@ export default function DiagnosticsScreen({ onBack }: DiagnosticsScreenProps) {
         <View accessibilityLiveRegion="polite" style={styles.result}>
           {result.state === 'idle' && <Text>Pronto para testar a ligação.</Text>}
           {loading && <><ActivityIndicator color="#00666B" /><Text>A verificar ligação…</Text></>}
-          {result.state === 'success' && <Text style={styles.success}>API acessível · HTTP {result.status}</Text>}
+          {result.state === 'success' && <Text style={styles.success}>CleanCheck: ok · HTTP {result.status}</Text>}
           {result.state === 'error' && <Text accessibilityRole="alert" style={styles.error}>{result.message}</Text>}
         </View>
         <Button color="#00666B" disabled={loading} onPress={diagnose}
           title={loading ? 'A verificar…' : result.state === 'idle' ? 'Testar ligação' : 'Testar novamente'} />
       </View>
-      <Text style={styles.note}>Este teste verifica a resposta de /up. Não valida a base de dados nem a autenticação.</Text>
+      <Text style={styles.note}>
+        Este teste confirma a identificação e o estado devolvidos por
+        /api/health. Não substitui os testes de autenticação e de acesso
+        aos dados.
+      </Text>
     </ScrollView>
   );
 }
