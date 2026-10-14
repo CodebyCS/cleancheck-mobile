@@ -8,7 +8,7 @@ Este repositório destina-se à aplicação em React Native com TypeScript, que 
 
 Projeto em fase inicial de configuração e desenvolvimento.
 
-A aplicação base React Native com TypeScript e Expo já existe na pasta `mobile`, com o modelo `blank-typescript`. O arranque desta base num iPhone através do Expo Go foi confirmado pelo responsável pelo teste. A ligação de diagnóstico à rota Laravel `/up` está implementada e foi validada num iPhone. As funcionalidades de negócio e autenticação ainda não estão ligadas à API.
+A aplicação React Native com TypeScript e Expo encontra-se na pasta mobile. Estão implementados o diagnóstico através de /api/health, o login por token, o armazenamento da sessão no SecureStore, a confirmação da identidade através de /api/user e o logout. As tarefas continuam a utilizar dados fictícios. A implementação e os resultados dos testes devem ser distinguidos: a validação completa da integração num dispositivo deve ser registada após execução.
 
 ## Tecnologias
 
@@ -85,15 +85,16 @@ Edita `.env.local` e substitui `IP-DO-COMPUTADOR` pelo IPv4 do computador que ex
 
 ```dotenv
 EXPO_PUBLIC_API_URL=http://IP-DO-COMPUTADOR:8000/api
-EXPO_PUBLIC_API_HEALTH_URL=http://IP-DO-COMPUTADOR:8000/up
+EXPO_PUBLIC_API_HEALTH_URL=http://IP-DO-COMPUTADOR:8000/api/health
 ```
 
-O ecrã de diagnóstico usa `EXPO_PUBLIC_API_HEALTH_URL`. O endereço base `EXPO_PUBLIC_API_URL` fica preparado para futuros pedidos aos endpoints da API. Estas variáveis são públicas e não devem conter segredos. Depois de alterar `.env.local`, reinicia o Expo.
+O ecrã de diagnóstico usa EXPO_PUBLIC_API_HEALTH_URL. O endereço base EXPO_PUBLIC_API_URL inclui /api e é utilizado nos pedidos de login, consulta do utilizador e logout. Estas variáveis são públicas e não devem conter segredos. Depois de alterar .env.local, reinicia o Expo e recarrega a aplicação.
 
 Num telemóvel físico, `localhost` aponta para o próprio telemóvel. No emulador padrão do Android Studio, utiliza `http://10.0.2.2:8000/api` para aceder à API no computador anfitrião.
-### 5. Disponibilizar a API na rede local
 
-Num terminal separado, dentro da pasta do projeto API, executa:
+### 4. Disponibilizar a API na rede local
+
+Mantém o MySQL/MariaDB ligado e as migrações aplicadas. Num terminal separado, dentro de cleancheck-api/api, executa:
 
 ```bash
 php artisan serve --host=0.0.0.0 --port=8000
@@ -103,7 +104,7 @@ Para testar num telemóvel físico, liga o computador e o telemóvel à mesma re
 
 A aplicação mobile comunica com a API e não acede diretamente à base de dados. Os endereços HTTP apresentados destinam-se ao desenvolvimento local; o ambiente publicado deve utilizar HTTPS.
 
-### 6. Iniciar a aplicação
+### 5. Iniciar a aplicação
 
 Dentro de `cleancheck-mobile/mobile`, executa:
 
@@ -154,6 +155,12 @@ Verificar a configuração e compatibilidade do projeto Expo:
 npx expo-doctor
 ```
 
+Verificar se as versões das dependências estão alinhadas com o SDK Expo:
+
+```bash
+npx expo install --check
+```
+
 Reiniciar o servidor com limpeza da cache:
 
 ```bash
@@ -187,39 +194,36 @@ Após alterações ao `.env.local`, reinicia o Expo e recarrega a aplicação.
 3. Implementa em TypeScript e verifica o funcionamento num dispositivo ou emulador.
 4. Envia a branch para o GitHub.
 
-A branch de integração deste repositório se chama `develop`, como indicado no projeto API. Consulta o [CONTRIBUTING.md](./CONTRIBUTING.md) para conhecer as convenções propostas.
+A branch de integração deste repositório se chama `main`, como indicado no projeto API. Consulta o [CONTRIBUTING.md](./CONTRIBUTING.md) para conhecer as convenções propostas.
 
 Sempre que uma alteração modificar os passos de instalação ou configuração, este README deve ser atualizado.
 
 ## Diagnóstico da API
 
-O ecrã inicial testa a rota de saúde `GET /up`, apresenta estados de carregamento, sucesso ou erro e permite repetir o pedido. O tempo limite do pedido é de 10 segundos.
+O ecrã de diagnóstico consulta `GET /api/health`, valida os campos `application: "CleanCheck"` e `status: "ok"` e apresenta estados de carregamento, sucesso ou erro. Permite repetir o pedido e tem um tempo limite de 10 segundos. Este diagnóstico não substitui os testes de autenticação.
 
 ### Teste com a API ligada
 
 - Dispositivo: iPhone 16 Pro Max, iOS 27.
 - Aplicação: Expo Go.
-- API executada no computador com `php artisan serve --host=0.0.0.0 --port=8000`.
-- Endereço de diagnóstico: `http://192.168.1.104:8000/up`.
-- Resultado: **API acessível · HTTP 200**.
+- API: php artisan serve --host=0.0.0.0 --port=8000.
+- Rota de diagnóstico: /api/health, através do IPv4 do computador.
+- Resultado: pendente de validação na aplicação.
 
 ### Teste com a API desligada
 
 1. Foi parado o servidor Laravel com `Ctrl+C`.
-2. No iPhone, foi tocado em **Testar novamente**.
-3. Resultado: o ecrã apresentou o erro **“Tempo limite de 10 segundos excedido. Verifica a API e a rede.”**.
+2. Na aplicação, tocar em **Testar novamente**.
+3. Resultado: pendente de validação na aplicação.
 
 Após o teste, o servidor Laravel foi iniciado novamente.
 
 ## Teste da configuração inicial
 
-- Computador: Windows.
-- Dispositivo: iPhone físico.
-- Modelo do iPhone e versão do iOS: iPhone 16 Pro Max / IOS 27.
-- Aplicação utilizada: Expo Go.
-- Comando de arranque: `npx expo start`, executado na pasta `mobile`.
-- Procedimento: iniciar o servidor, ler o QR Code com a Câmara do iPhone e abrir o projeto no Expo Go.
-- Resultado: aplicação iniciada com sucesso, conforme confirmado pelo responsável pelo teste.
-- Ecrã da base: `Open up App.tsx to start working on your app!`.
+- Ambiente: Windows e iPhone 16 Pro Max com iOS 27.
+- Aplicação: Expo Go.
+- Comando: npx expo start, executado na pasta mobile.
+- Procedimento: ler o QR code com a Câmara do iPhone e abrir o projeto no Expo Go.
+- Resultado: aplicação iniciada com sucesso.
 
 Esta validação confirmou a execução inicial da base mobile. A ligação à API foi validada separadamente no teste de diagnóstico acima; as funcionalidades de negócio e a autenticação serão desenvolvidas nas tarefas seguintes.
