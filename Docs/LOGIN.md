@@ -18,7 +18,7 @@ A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/login` com os headers `Accept: a
 
 A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/logout` com os headers `Accept: application/json` e `Authorization: Bearer <token>`.
 
-Independentemente do resultado do pedido à API, a sessão é sempre removida do Expo SecureStore e do `AuthContext`. Assim, uma falha de rede ou erro da API não impede a saída local do utilizador.
+O pedido é sempre tentado com o token atual. A limpeza local é executada no bloco `finally`: tanto numa resposta de sucesso da API como numa falha de rede, timeout ou erro devolvido pela API, o token e os dados de sessão são removidos do Expo SecureStore e do `AuthContext`. A app regressa, por isso, ao ecrã de login mesmo quando a revogação remota não é confirmada.
 
 ## Comportamento implementado
 
@@ -32,7 +32,7 @@ Independentemente do resultado do pedido à API, a sessão é sempre removida do
 - `authenticatedFetch` adiciona `Accept: application/json` e `Authorization: Bearer <token>` aos pedidos autenticados.
 - Antes de um pedido autenticado, uma sessão expirada é removida e o utilizador regressa ao login. Uma resposta HTTP `401` também limpa a sessão guardada e provoca o regresso ao login.
 - Após autenticação, a navegação provisória disponibiliza os separadores **Tarefas**, **Agenda**, **Avisos** e **Perfil**.
-- A ação de logout está disponível no separador **Perfil**. Depois da limpeza da sessão, a aplicação regressa ao ecrã de login.
+- A ação de logout está disponível no separador **Perfil**. O pedido de revogação é enviado antes da limpeza local; a limpeza e o regresso ao ecrã de login ocorrem sempre, mesmo que esse pedido falhe.
 - O endereço base é configurado por `EXPO_PUBLIC_API_URL` no `.env.local` da pasta `mobile`; reinicia o Expo depois de o alterar.
 
 ## Limitações e trabalho pendente
@@ -46,5 +46,5 @@ Os separadores **Agenda**, **Avisos** e **Perfil** fazem parte da navegação pr
 ## Validação
 
 - `npm exec tsc -- --noEmit`: passou.
-- O QA validou com test doubles o login `200`, erros `422`/`429`, falha de rede e operações do SecureStore. O envio Bearer, restauro, expiração e fluxo `401` foram inspecionados.
+- O QA validou com test doubles o login `200`, erros `422`/`429`, falha de rede e operações do SecureStore. O envio Bearer, restauro, expiração, fluxo `401` e a limpeza local no logout, incluindo quando a API falha, foram inspecionados.
 - O projeto não define script `lint`; o serviço não foi testado contra a API real nem num dispositivo nesta validação.
