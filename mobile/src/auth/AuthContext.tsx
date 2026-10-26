@@ -105,16 +105,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
  const clearLocalSession = useCallback(async () => {
-  await removeAuthSession();
-  setSession(null);
+  // O estado é limpo mesmo se o armazenamento seguro não responder.
+  // Assim, a navegação regressa sempre ao login durante o logout.
+  try {
+    await removeAuthSession();
+  } finally {
+    setSession(null);
+  }
 }, []);
 
   const signOut = useCallback(async () => {
-  if (session?.token) {
-    await logout(session.token);
+  try {
+    if (session?.token) {
+      await logout(session.token);
+    }
+  } catch {
+    // A saída local não depende da confirmação da API. O token pode ser
+    // revogado mais tarde pela expiração, mas deixa de estar no dispositivo.
+  } finally {
+    await clearLocalSession();
   }
-
-  await clearLocalSession();
 }, [session, clearLocalSession]);
 
   const authenticatedFetch = useCallback(async (input: RequestInfo | URL, init: RequestInit = {}) => {
