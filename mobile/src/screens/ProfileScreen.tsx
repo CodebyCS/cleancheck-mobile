@@ -37,7 +37,7 @@ export default function ProfileScreen() {
       <Pressable accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} disabled={loading} onPress={handleLogout} style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed]}>
         {loading ? <><ActivityIndicator color="#A52323" /><Text style={styles.logoutText}>A terminar sessão…</Text></> : <Text style={styles.logoutText}>Terminar sessão</Text>}
       </Pressable>
-      <Text style={styles.note}>É necessária ligação à API para confirmar o fim da sessão.</Text>
+      <Text style={styles.note}>A sessão é removida deste dispositivo mesmo sem ligação à API.</Text>
     </ScrollView>
   );
 }
