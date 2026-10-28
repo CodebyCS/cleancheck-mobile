@@ -32,7 +32,7 @@ export default function ProfileScreen() {
       <View style={styles.card}>
         <Text style={styles.name}>{session?.user.name ?? 'Prestador'}</Text>
         <Text style={styles.email}>{session?.user.email}</Text>
-        <Text style={styles.role}>{session?.user.role}</Text>
+        <Text style={styles.role}>{(session?.user.role === 'service_provider' || session?.user.role === 'prestador') ? 'Prestador' : session?.user.role}</Text>
       </View>
       <Pressable accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} disabled={loading} onPress={handleLogout} style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed]}>
         {loading ? <><ActivityIndicator color="#A52323" /><Text style={styles.logoutText}>A terminar sessão…</Text></> : <Text style={styles.logoutText}>Terminar sessão</Text>}

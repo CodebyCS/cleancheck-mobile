@@ -17,7 +17,7 @@ function isStoredAuthSession(value: unknown): value is StoredAuthSession {
     && ['string', 'number'].includes(typeof Reflect.get(user, 'id'))
     && typeof Reflect.get(user, 'name') === 'string'
     && typeof Reflect.get(user, 'email') === 'string'
-    && ['admin', 'supervisor', 'prestador'].includes(
+    && ['admin', 'supervisor', 'service_provider', 'prestador'].includes(
       Reflect.get(user, 'role'),
     );
 }

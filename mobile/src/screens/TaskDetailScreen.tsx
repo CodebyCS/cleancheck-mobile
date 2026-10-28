@@ -1,77 +1,66 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { CleaningTask } from '../services/mockTasks';
+import { taskDateLabel, taskStatusLabel, taskTypeLabel, TaskDetail } from '../services/tasks';
 
-type TaskDetailScreenProps = { task: CleaningTask; onBack: () => void; onComplete: (taskId: string) => void };
+type TaskDetailScreenProps = { task: TaskDetail; onBack: () => void };
 
-function VideoStep({
-  sectionLabel,
-  title,
-  description,
-  done,
-  disabled,
-  onRegister,
-}: {
-  sectionLabel: string;
-  title: string;
-  description: string;
-  done: boolean;
-  disabled: boolean;
-  onRegister: () => void;
+function VideoStep({ sectionLabel, title, description, done, disabled, onRegister }: {
+  sectionLabel: string; title: string; description: string;
+  done: boolean; disabled: boolean; onRegister: () => void;
 }) {
   return (
     <View>
-    <Text style={styles.sectionLabel}>{sectionLabel}</Text>
-    <View style={[styles.stepCard, disabled && styles.stepDisabled]}>
-      <View style={styles.stepHeader}>
-        <Text style={styles.stepTitle}>{title}</Text>
-        <Text style={[styles.stepState, done && styles.stepStateDone]}>{done ? 'REGISTADO' : disabled ? 'BLOQUEADO' : 'PENDENTE'}</Text>
+      <Text style={styles.sectionLabel}>{sectionLabel}</Text>
+      <View style={[styles.stepCard, disabled && styles.stepDisabled]}>
+        <View style={styles.stepHeader}>
+          <Text style={styles.stepTitle}>{title}</Text>
+          <Text style={[styles.stepState, done && styles.stepStateDone]}>{done ? 'SIMULADO' : disabled ? 'BLOQUEADO' : 'PENDENTE'}</Text>
+        </View>
+        <Text style={styles.stepDescription}>{description}</Text>
+        <View style={styles.buttonRow}>
+          <Pressable accessibilityRole="button" disabled={disabled || done} onPress={onRegister} style={({ pressed }) => [styles.secondaryButton, (disabled || done) && styles.buttonDisabled, pressed && !disabled && !done && styles.pressed]}>
+            <Text style={styles.secondaryButtonText}>{done ? 'Vídeo simulado' : 'Gravar Vídeo'}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" disabled={disabled || done} onPress={onRegister} style={({ pressed }) => [styles.secondaryButton, (disabled || done) && styles.buttonDisabled, pressed && !disabled && !done && styles.pressed]}>
+            <Text style={styles.secondaryButtonText}>Enviar Vídeo</Text>
+          </Pressable>
+        </View>
       </View>
-      <Text style={styles.stepDescription}>{description}</Text>
-      <View style={styles.buttonRow}>
-        <Pressable accessibilityRole="button" disabled={disabled || done} onPress={onRegister} style={({ pressed }) => [styles.secondaryButton, (disabled || done) && styles.buttonDisabled, pressed && !disabled && !done && styles.pressed]}>
-          <Text style={styles.secondaryButtonText}>{done ? 'Vídeo registado' : 'Gravar Vídeo'}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" disabled={disabled || done} onPress={onRegister} style={({ pressed }) => [styles.secondaryButton, (disabled || done) && styles.buttonDisabled, pressed && !disabled && !done && styles.pressed]}>
-          <Text style={styles.secondaryButtonText}>Enviar Vídeo</Text>
-        </Pressable>
-      </View>
-    </View>
     </View>
   );
 }
 
-export default function TaskDetailScreen({ task, onBack, onComplete }: TaskDetailScreenProps) {
-  const initiallyCompleted = task.status === 'CONCLUÍDA';
-  const [initialVideoDone, setInitialVideoDone] = useState(initiallyCompleted);
-  const [finalVideoDone, setFinalVideoDone] = useState(initiallyCompleted);
-  const [completed, setCompleted] = useState(initiallyCompleted);
-
-  const currentStage = completed ? 3 : finalVideoDone ? 2 : initialVideoDone ? 1 : 0;
+export default function TaskDetailScreen({ task, onBack }: TaskDetailScreenProps) {
+  const alreadyCompleted = task.status === 'completed';
+  const [initialVideoDone, setInitialVideoDone] = useState(false);
+  const [finalVideoDone, setFinalVideoDone] = useState(false);
+  const [simulationComplete, setSimulationComplete] = useState(false);
+  const currentStage = simulationComplete ? 3 : finalVideoDone ? 2 : initialVideoDone ? 1 : 0;
 
   return (
     <ScrollView contentContainerStyle={styles.page} contentInsetAdjustmentBehavior="automatic">
       <View style={styles.topRow}>
         <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ Minhas Tarefas</Text></Pressable>
-        <Text style={styles.testBadge}>Modo de Teste</Text>
       </View>
 
       <View style={styles.headingRow}>
         <View style={styles.headingText}>
           <Text style={styles.eyebrow}>Detalhe da tarefa</Text>
-          <Text style={styles.title}>{task.property}</Text>
-          <Text style={styles.address}>{task.address}</Text>
+          <Text style={styles.title}>{task.property ?? 'Imóvel sem nome'}</Text>
+          <Text style={styles.address}>{task.address ?? 'Morada não disponível'}</Text>
         </View>
-        <Text style={[styles.status, completed && styles.statusDone]}>{completed ? 'CONCLUÍDA' : 'A FAZER'}</Text>
+        <Text style={[styles.status, alreadyCompleted && styles.statusDone]}>{taskStatusLabel(task.status)}</Text>
       </View>
 
       <View style={styles.infoCard}>
-        <View><Text style={styles.infoLabel}>Data e hora</Text><Text style={styles.infoValue}>{task.date} · {task.time}</Text></View>
-        <View><Text style={styles.infoLabel}>Duração</Text><Text style={styles.infoValue}>{task.duration}</Text></View>
-        <View><Text style={styles.infoLabel}>Tipo</Text><Text style={styles.infoValue}>{task.type}</Text></View>
+        <View><Text style={styles.infoLabel}>Data e hora</Text><Text style={styles.infoValue}>{taskDateLabel(task.scheduled_start_at)}</Text></View>
+        <View><Text style={styles.infoLabel}>Prazo</Text><Text style={styles.infoValue}>{taskDateLabel(task.scheduled_end_at)}</Text></View>
+        <View><Text style={styles.infoLabel}>Tipo</Text><Text style={styles.infoValue}>{taskTypeLabel(task.type)}</Text></View>
+        {task.started_at && <View><Text style={styles.infoLabel}>Início registado</Text><Text style={styles.infoValue}>{taskDateLabel(task.started_at)}</Text></View>}
+        {task.completed_at && <View><Text style={styles.infoLabel}>Conclusão registada</Text><Text style={styles.infoValue}>{taskDateLabel(task.completed_at)}</Text></View>}
       </View>
 
-      <View style={styles.timeline} accessibilityLabel="Progresso da tarefa">
+      <View style={styles.timeline} accessibilityLabel="Progresso da simulação">
         {['Início', 'Final', 'Pronto'].map((label, index) => (
           <View key={label} style={styles.timelineItem}>
             <View style={[styles.timelineDot, index <= currentStage && styles.timelineDotActive]} />
@@ -80,22 +69,16 @@ export default function TaskDetailScreen({ task, onBack, onComplete }: TaskDetai
         ))}
       </View>
 
-      <View style={styles.notice}><Text style={styles.noticeText}>Este fluxo é uma simulação. Os botões não abrem a câmara nem enviam ficheiros.</Text></View>
+      <View style={styles.notice}><Text style={styles.noticeText}>Simulação local: os vídeos não são gravados nem enviados e concluir aqui não altera a tarefa na API.</Text></View>
+      <VideoStep sectionLabel="1. ANTES DA LIMPEZA" title="Vídeo Inicial" description="Simula o registo do estado do imóvel antes da limpeza." done={initialVideoDone} disabled={alreadyCompleted || simulationComplete} onRegister={() => setInitialVideoDone(true)} />
+      <VideoStep sectionLabel="2. DEPOIS DA LIMPEZA" title="Vídeo Final" description="Simula o registo do estado do imóvel depois da limpeza." done={finalVideoDone} disabled={!initialVideoDone || alreadyCompleted || simulationComplete} onRegister={() => setFinalVideoDone(true)} />
 
-      <VideoStep sectionLabel="1. ANTES DA LIMPEZA" title="Vídeo Inicial" description="Regista o estado do imóvel antes de começar a limpeza." done={initialVideoDone} disabled={completed} onRegister={() => setInitialVideoDone(true)} />
-      <VideoStep sectionLabel="2. DEPOIS DA LIMPEZA" title="Vídeo Final" description="Regista o estado do imóvel depois de terminares a limpeza." done={finalVideoDone} disabled={!initialVideoDone || completed} onRegister={() => setFinalVideoDone(true)} />
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !initialVideoDone || !finalVideoDone || completed }}
-        disabled={!initialVideoDone || !finalVideoDone || completed}
-        onPress={() => {
-          setCompleted(true);
-          onComplete(task.id);
-        }}
-        style={({ pressed }) => [styles.completeButton, (!initialVideoDone || !finalVideoDone || completed) && styles.completeButtonDisabled, pressed && styles.pressed]}
-      >
-        <Text style={styles.completeButtonText}>{completed ? 'TAREFA CONCLUÍDA' : 'CONCLUIR TAREFA'}</Text>
+      <Pressable accessibilityRole="button"
+        accessibilityState={{ disabled: !initialVideoDone || !finalVideoDone || alreadyCompleted || simulationComplete }}
+        disabled={!initialVideoDone || !finalVideoDone || alreadyCompleted || simulationComplete}
+        onPress={() => setSimulationComplete(true)}
+        style={({ pressed }) => [styles.completeButton, (!initialVideoDone || !finalVideoDone || alreadyCompleted || simulationComplete) && styles.completeButtonDisabled, pressed && styles.pressed]}>
+        <Text style={styles.completeButtonText}>{simulationComplete ? 'SIMULAÇÃO CONCLUÍDA' : 'SIMULAR CONCLUSÃO'}</Text>
       </Pressable>
     </ScrollView>
   );
@@ -103,9 +86,8 @@ export default function TaskDetailScreen({ task, onBack, onComplete }: TaskDetai
 
 const styles = StyleSheet.create({
   page: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 40, backgroundColor: '#F5F8FC' },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 22 },
+  topRow: { flexDirection: 'row', marginBottom: 22 },
   back: { color: '#1769E8', fontSize: 16, fontWeight: '700' },
-  testBadge: { color: '#8A5700', backgroundColor: '#FFF1C7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, fontSize: 12, fontWeight: '800', overflow: 'hidden' },
   headingRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 18 },
   headingText: { flex: 1 },
   eyebrow: { color: '#1769E8', fontSize: 14, fontWeight: '800', marginBottom: 5 },

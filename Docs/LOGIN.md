@@ -14,6 +14,8 @@ A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/login` com os headers `Accept: a
 
 `device_name` é opcional. A resposta de sucesso inclui `token`, `expires_at` e `user` (`id`, `name`, `email`, `role`).
 
+A branch `develop` da API identifica o prestador com `role: service_provider`, mas uma instância local ainda pode devolver `role: prestador`. A app aceita ambos os valores no login, em `GET /api/user` e na sessão guardada no Expo SecureStore.
+
 ## Logout
 
 A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/logout` com os headers `Accept: application/json` e `Authorization: Bearer <token>`.
@@ -39,7 +41,7 @@ O pedido é sempre tentado com o token atual. A limpeza local é executada no bl
 
 A sessão é persistida localmente com Expo SecureStore, mas a renovação do token ainda não está implementada. Quando a sessão expira ou a API devolve `401`, a aplicação remove a sessão local e exige um novo login.
 
-A API atual devolve o campo `role`, mas o endpoint de login não restringe o acesso ao papel `prestador`. Confirmar com a equipa se a API deverá impor essa regra; uma validação apenas no cliente não constitui controlo de acesso seguro.
+A API atual devolve o campo `role`, mas o endpoint de login não restringe o acesso aos perfis de prestador (`service_provider` ou `prestador`). Confirmar com a equipa se a API deverá impor essa regra; uma validação apenas no cliente não constitui controlo de acesso seguro.
 
 Os separadores **Agenda**, **Avisos** e **Perfil** fazem parte da navegação provisória. A presença dos separadores não confirma integração dessas áreas com a API.
 
