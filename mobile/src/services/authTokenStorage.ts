@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { AuthUser } from './auth';
+import { AuthUser, isUserRole } from './auth';
 
 export type StoredAuthSession = { token: string; user: AuthUser; expiresAt: string };
 const SESSION_KEY = 'cleancheck.auth.session';
@@ -17,9 +17,7 @@ function isStoredAuthSession(value: unknown): value is StoredAuthSession {
     && ['string', 'number'].includes(typeof Reflect.get(user, 'id'))
     && typeof Reflect.get(user, 'name') === 'string'
     && typeof Reflect.get(user, 'email') === 'string'
-    && ['admin', 'supervisor', 'prestador'].includes(
-      Reflect.get(user, 'role'),
-    );
+    && isUserRole(Reflect.get(user, 'role'));
 }
 
 export async function saveAuthSession(session: StoredAuthSession): Promise<void> {
