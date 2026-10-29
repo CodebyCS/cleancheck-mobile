@@ -52,7 +52,7 @@ function isLoginResponse(value: unknown): value is LoginResponse {
   );
 }
 
-function apiUrl(path: string): string {
+export function apiUrl(path: string): string {
   const base = process.env.EXPO_PUBLIC_API_URL
     ?.trim()
     .replace(/\/$/, '');
