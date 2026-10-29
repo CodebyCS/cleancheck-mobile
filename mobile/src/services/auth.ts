@@ -1,5 +1,12 @@
+export const USER_ROLES = ['admin', 'supervisor', 'service_provider'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+export function isUserRole(value: unknown): value is UserRole {
+  return typeof value === 'string' && (USER_ROLES as readonly string[]).includes(value);
+}
+
 export type LoginCredentials = { email: string; password: string; device_name?: string };
-export type AuthUser = { id: number | string; name: string; email: string; role: 'admin' | 'supervisor' | 'prestador' };
+export type AuthUser = { id: number | string; name: string; email: string; role: UserRole };
 export type LoginResponse = { token: string; expires_at: string; user: AuthUser };
 export type LoginFieldErrors = { email?: string; password?: string };
 export type AuthErrorCode = 'VALIDATION' | 'RATE_LIMITED' | 'NETWORK' | 'SERVER' | 'CONFIGURATION' | 'INVALID_RESPONSE' | 'SESSION_EXPIRED' | 'FORBIDDEN';
@@ -122,7 +129,7 @@ function isAuthUser(value: unknown): value is AuthUser {
     (typeof id === 'number' || typeof id === 'string') &&
     typeof Reflect.get(value, 'name') === 'string' &&
     typeof Reflect.get(value, 'email') === 'string' &&
-    (role === 'admin' || role === 'supervisor' || role === 'prestador')
+    isUserRole(role)
   );
 }
 
