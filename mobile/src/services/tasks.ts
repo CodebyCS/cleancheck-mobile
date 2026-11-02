@@ -45,9 +45,6 @@ async function getJson(path: string, authenticatedFetch: AuthenticatedFetch): Pr
     }
     throw new TaskError('NETWORK', 'Não foi possível carregar as tarefas. Verifica a ligação e tenta novamente.');
   }
-  if (response.status === 401) {
-    throw new TaskError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
-  }
   if (response.status === 404) {
     throw new TaskError('NOT_FOUND', 'Esta tarefa já não está disponível para a tua conta.');
   }

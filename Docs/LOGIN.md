@@ -32,7 +32,7 @@ O pedido é sempre tentado com o token atual. A limpeza local é executada no bl
 - `AuthContext` mantém token, utilizador e expiração no estado da aplicação. O login bem-sucedido guarda a sessão no Expo SecureStore e abre o ecrã existente.
 - Ao iniciar a aplicação, `AuthContext` restaura a sessão guardada. Sessões expiradas ou dados inválidos são removidos; durante o restauro é apresentado um indicador de carregamento.
 - `authenticatedFetch` adiciona `Accept: application/json` e `Authorization: Bearer <token>` aos pedidos autenticados.
-- Antes de um pedido autenticado, uma sessão expirada é removida e o utilizador regressa ao login. Uma resposta HTTP `401` também limpa a sessão guardada e provoca o regresso ao login.
+- Antes de um pedido autenticado, uma sessão expirada é removida e o utilizador regressa ao login. Se a API responder HTTP `401`, `authenticatedFetch` limpa a sessão guardada e lança `AuthError` com o código `SESSION_EXPIRED`; os serviços recebem esse erro sem precisar de interpretar a resposta `401` novamente.
 - Após autenticação, a navegação provisória disponibiliza os separadores **Tarefas**, **Agenda**, **Avisos** e **Perfil**.
 - A ação de logout está disponível no separador **Perfil**. O pedido de revogação é enviado antes da limpeza local; a limpeza e o regresso ao ecrã de login ocorrem sempre, mesmo que esse pedido falhe.
 - O endereço base é configurado por `EXPO_PUBLIC_API_URL` no `.env.local` da pasta `mobile`; reinicia o Expo depois de o alterar.

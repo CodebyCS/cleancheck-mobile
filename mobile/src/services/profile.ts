@@ -57,10 +57,6 @@ export async function getProfile(authenticatedFetch: AuthenticatedFetch): Promis
     );
   }
 
-  if (response.status === 401) {
-    throw new AuthError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
-  }
-
   if (response.status === 404) {
     throw new AuthError('FORBIDDEN', 'Esta conta não tem perfil de prestador.');
   }
