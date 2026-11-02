@@ -1,3 +1,6 @@
+import { AuthError } from './auth';
+import { apiUrl, fetchWithTimeout } from './httpClient';
+
 export type TaskListItem = {
   id: number;
   property: string | null;
@@ -24,27 +27,23 @@ export class TaskError extends Error {
 }
 
 function taskUrl(path: string): string {
-  const base = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/$/, '');
-  if (!base || !/^https?:\/\//i.test(base) || base.includes('IP-DO-COMPUTADOR')) {
+  try {
+    return apiUrl(path);
+  } catch {
     throw new TaskError('CONFIGURATION', 'O endereço da API não está configurado.');
   }
-  return `${base}${path}`;
 }
 
 async function getJson(path: string, authenticatedFetch: AuthenticatedFetch): Promise<unknown> {
   const url = taskUrl(path);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
   let response: Response;
   try {
-    response = await authenticatedFetch(url, { signal: controller.signal });
+    response = await fetchWithTimeout(url, {}, authenticatedFetch);
   } catch (error) {
-    if (error instanceof Error && error.name === 'AuthError') {
+    if (error instanceof AuthError && error.code === 'SESSION_EXPIRED') {
       throw new TaskError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
     }
     throw new TaskError('NETWORK', 'Não foi possível carregar as tarefas. Verifica a ligação e tenta novamente.');
-  } finally {
-    clearTimeout(timer);
   }
   if (response.status === 401) {
     throw new TaskError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
@@ -130,3 +129,4 @@ export function isToday(value: string, now = new Date()): boolean {
     && date.getMonth() === now.getMonth()
     && date.getDate() === now.getDate();
 }
+

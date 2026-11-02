@@ -1,4 +1,5 @@
 import { apiUrl, AuthError } from './auth';
+import { fetchWithTimeout, HttpClientError } from './httpClient';
 
 export type Profile = {
   id: number | string;
@@ -13,8 +14,6 @@ export type Profile = {
 };
 
 type AuthenticatedFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-
-const REQUEST_TIMEOUT_MS = 10000;
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
@@ -43,28 +42,19 @@ function isProfile(value: unknown): value is Profile {
  * the session token; the API accepts no id, so it only returns the own profile.
  */
 export async function getProfile(authenticatedFetch: AuthenticatedFetch): Promise<Profile> {
-  const controller = new AbortController();
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, REQUEST_TIMEOUT_MS);
-
   let response: Response;
 
   try {
-    response = await authenticatedFetch(apiUrl('/profile'), { signal: controller.signal });
+    response = await fetchWithTimeout(apiUrl('/profile'), {}, authenticatedFetch);
   } catch (error) {
     if (error instanceof AuthError) throw error;
 
     throw new AuthError(
       'NETWORK',
-      timedOut
+      error instanceof HttpClientError && error.code === 'TIMEOUT'
         ? 'Tempo limite excedido. Verifica a API e a rede.'
         : 'Não foi possível contactar a API. Tenta novamente.',
     );
-  } finally {
-    clearTimeout(timer);
   }
 
   if (response.status === 401) {
