@@ -31,7 +31,7 @@ A resposta de sucesso (`200`) devolve em `data`:
 
 ## Perfis aceites
 
-A API identifica os prestadores com o perfil `service_provider`. A validação do login e da sessão guardada aceita `admin`, `supervisor` e `service_provider` (`USER_ROLES` em `src/services/auth.ts`). Sessões guardadas com o perfil antigo `prestador` são removidas e é pedido um novo login.
+A API identifica os prestadores com o perfil `service_provider`. A validação do login e da sessão guardada aceita `admin`, `supervisor` e `service_provider` (`AuthUser` e `isAuthUser` em `src/services/auth.ts`). Sessões guardadas com o perfil antigo `prestador` são removidas e é pedido um novo login.
 
 ## Verificação com duas contas
 

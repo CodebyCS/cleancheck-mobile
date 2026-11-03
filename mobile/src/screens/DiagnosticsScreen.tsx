@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Button, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { checkApiHealth, healthUrl } from '../services/apiHealth';
+import { HttpClientError } from '../services/httpClient';
 
 type Result = { state: 'idle' | 'loading' } | { state: 'success'; status: number } | { state: 'error'; message: string };
 type DiagnosticsScreenProps = { onBack?: () => void };
@@ -17,19 +18,15 @@ export default function DiagnosticsScreen({ onBack }: DiagnosticsScreenProps) {
     const controller = new AbortController();
     active.current = controller;
     setResult({ state: 'loading' });
-    let timedOut = false;
-    // A API desligada não pode deixar o ecrã a carregar indefinidamente.
-    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 10000);
     try {
       const status = await checkApiHealth(controller.signal);
       if (active.current === controller) setResult({ state: 'success', status });
     } catch (error) {
-      if (active.current === controller) setResult({ state: 'error', message: timedOut
+      if (active.current === controller) setResult({ state: 'error', message: error instanceof HttpClientError && error.code === 'TIMEOUT'
         ? 'Tempo limite de 10 segundos excedido. Verifica a API e a rede.'
         : error instanceof TypeError ? 'Não foi possível contactar a API. Verifica o servidor, o IP e o Wi-Fi.'
         : error instanceof Error ? error.message : 'Erro ao verificar a ligação.' });
     } finally {
-      clearTimeout(timer);
       if (active.current === controller) active.current = null;
     }
   }

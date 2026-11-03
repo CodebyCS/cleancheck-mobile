@@ -1,12 +1,7 @@
-export const USER_ROLES = ['admin', 'supervisor', 'service_provider'] as const;
-export type UserRole = (typeof USER_ROLES)[number];
-
-export function isUserRole(value: unknown): value is UserRole {
-  return typeof value === 'string' && (USER_ROLES as readonly string[]).includes(value);
-}
+import { apiUrl as clientApiUrl, HttpClientError, withTimeout } from './httpClient';
 
 export type LoginCredentials = { email: string; password: string; device_name?: string };
-export type AuthUser = { id: number | string; name: string; email: string; role: UserRole };
+export type AuthUser = { id: number | string; name: string; email: string; role: 'admin' | 'supervisor' | 'service_provider' };
 export type LoginResponse = { token: string; expires_at: string; user: AuthUser };
 export type LoginFieldErrors = { email?: string; password?: string };
 export type AuthErrorCode = 'VALIDATION' | 'RATE_LIMITED' | 'NETWORK' | 'SERVER' | 'CONFIGURATION' | 'INVALID_RESPONSE' | 'SESSION_EXPIRED' | 'FORBIDDEN';
@@ -53,19 +48,11 @@ function isLoginResponse(value: unknown): value is LoginResponse {
 }
 
 export function apiUrl(path: string): string {
-  const base = process.env.EXPO_PUBLIC_API_URL
-    ?.trim()
-    .replace(/\/$/, '');
-  if (!base || 
-    !/^https?:\/\//i.test(base) ||
-    base.includes('IP-DO-COMPUTADOR')) 
-    {
-      throw new AuthError(
-        'CONFIGURATION', 
-        'O endereço da API não está configurado.',
-    );
+  try {
+    return clientApiUrl(path);
+  } catch {
+    throw new AuthError('CONFIGURATION', 'O endereço da API não está configurado.');
   }
-  return `${base}${path}`;
 }
 
 async function request(
@@ -73,14 +60,6 @@ async function request(
   init: RequestInit = {},
 ): Promise<{ status: number; payload: unknown }> {
   const url = apiUrl(path);
-  const controller = new AbortController();
-  let timedOut = false;
-
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, 10000);
-
   try {
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/json');
@@ -89,13 +68,10 @@ async function request(
       headers.set('Content-Type', 'application/json');
     }
 
-    const response = await fetch(url, {
-      ...init,
-      headers,
-      signal: controller.signal,
+    const { response, text } = await withTimeout(async (signal) => {
+      const response = await fetch(url, { ...init, headers, signal });
+      return { response, text: await response.text() };
     });
-
-    const text = await response.text();
     let payload: unknown = null;
 
     if (text) {
@@ -107,15 +83,13 @@ async function request(
     }
 
     return { status: response.status, payload };
-  } catch {
+  } catch (error) {
     throw new AuthError(
       'NETWORK',
-      timedOut
+      error instanceof HttpClientError && error.code === 'TIMEOUT'
         ? 'Tempo limite excedido. Verifica a API e a rede.'
         : 'Não foi possível contactar a API. Tenta novamente.',
     );
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -129,7 +103,7 @@ function isAuthUser(value: unknown): value is AuthUser {
     (typeof id === 'number' || typeof id === 'string') &&
     typeof Reflect.get(value, 'name') === 'string' &&
     typeof Reflect.get(value, 'email') === 'string' &&
-    isUserRole(role)
+    (role === 'admin' || role === 'supervisor' || role === 'service_provider')
   );
 }
 
@@ -228,3 +202,4 @@ export async function logout(token: string): Promise<void> {
     'A API não confirmou o logout. Tenta novamente.',
   );
 }
+

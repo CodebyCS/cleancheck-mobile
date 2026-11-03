@@ -136,7 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     headers.set('Accept', 'application/json');
     headers.set('Authorization', `Bearer ${session.token}`);
     const response = await fetch(input, { ...init, headers });
-    if (response.status === 401) await clearLocalSession();
+    if (response.status === 401) {
+      await clearLocalSession();
+      throw new AuthError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+    }
     return response;
   }, [session, clearLocalSession]);
 

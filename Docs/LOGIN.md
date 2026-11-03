@@ -14,6 +14,8 @@ A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/login` com os headers `Accept: a
 
 `device_name` é opcional. A resposta de sucesso inclui `token`, `expires_at` e `user` (`id`, `name`, `email`, `role`).
 
+A API identifica o prestador com `role: service_provider`. A app aceita esse valor no login, em `GET /api/user` e na sessão guardada no Expo SecureStore. Uma sessão antiga com `role: prestador` é removida e requer novo login.
+
 ## Logout
 
 A app envia `POST ${EXPO_PUBLIC_API_URL}/mobile/logout` com os headers `Accept: application/json` e `Authorization: Bearer <token>`.
@@ -30,7 +32,7 @@ O pedido é sempre tentado com o token atual. A limpeza local é executada no bl
 - `AuthContext` mantém token, utilizador e expiração no estado da aplicação. O login bem-sucedido guarda a sessão no Expo SecureStore e abre o ecrã existente.
 - Ao iniciar a aplicação, `AuthContext` restaura a sessão guardada. Sessões expiradas ou dados inválidos são removidos; durante o restauro é apresentado um indicador de carregamento.
 - `authenticatedFetch` adiciona `Accept: application/json` e `Authorization: Bearer <token>` aos pedidos autenticados.
-- Antes de um pedido autenticado, uma sessão expirada é removida e o utilizador regressa ao login. Uma resposta HTTP `401` também limpa a sessão guardada e provoca o regresso ao login.
+- Antes de um pedido autenticado, uma sessão expirada é removida e o utilizador regressa ao login. Se a API responder HTTP `401`, `authenticatedFetch` limpa a sessão guardada e lança `AuthError` com o código `SESSION_EXPIRED`; os serviços recebem esse erro sem precisar de interpretar a resposta `401` novamente.
 - Após autenticação, a navegação provisória disponibiliza os separadores **Tarefas**, **Agenda**, **Avisos** e **Perfil**.
 - A ação de logout está disponível no separador **Perfil**. O pedido de revogação é enviado antes da limpeza local; a limpeza e o regresso ao ecrã de login ocorrem sempre, mesmo que esse pedido falhe.
 - O endereço base é configurado por `EXPO_PUBLIC_API_URL` no `.env.local` da pasta `mobile`; reinicia o Expo depois de o alterar.
@@ -39,7 +41,7 @@ O pedido é sempre tentado com o token atual. A limpeza local é executada no bl
 
 A sessão é persistida localmente com Expo SecureStore, mas a renovação do token ainda não está implementada. Quando a sessão expira ou a API devolve `401`, a aplicação remove a sessão local e exige um novo login.
 
-A API atual devolve o campo `role`, mas o endpoint de login não restringe o acesso ao papel `prestador`. Confirmar com a equipa se a API deverá impor essa regra; uma validação apenas no cliente não constitui controlo de acesso seguro.
+A API atual devolve o campo `role`, mas o endpoint de login não restringe o acesso ao perfil de prestador (`service_provider`). Confirmar com a equipa se a API deverá impor essa regra; uma validação apenas no cliente não constitui controlo de acesso seguro.
 
 Os separadores **Agenda**, **Avisos** e **Perfil** fazem parte da navegação provisória. A presença dos separadores não confirma integração dessas áreas com a API.
 

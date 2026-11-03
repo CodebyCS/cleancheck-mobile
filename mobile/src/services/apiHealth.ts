@@ -1,3 +1,5 @@
+import { absoluteApiUrl, fetchWithTimeout } from './httpClient';
+
 // O Expo substitui esta leitura pelo endereço definido em .env.local.
 export const healthUrl =
   process.env.EXPO_PUBLIC_API_HEALTH_URL?.trim() ?? '';
@@ -5,17 +7,14 @@ export const healthUrl =
 export async function checkApiHealth(
   signal: AbortSignal,
 ): Promise<number> {
-  if (
-    !healthUrl ||
-    !/^https?:\/\//i.test(healthUrl) ||
-    healthUrl.includes('IP-DO-COMPUTADOR')
-  ) {
-    throw new Error(
-      'Configura EXPO_PUBLIC_API_HEALTH_URL em .env.local.',
-    );
+  let url: string;
+  try {
+    url = absoluteApiUrl(healthUrl);
+  } catch {
+    throw new Error('Configura EXPO_PUBLIC_API_HEALTH_URL em .env.local.');
   }
 
-  const response = await fetch(healthUrl, {
+  const response = await fetchWithTimeout(url, {
     signal,
     headers: {
       Accept: 'application/json',
@@ -44,3 +43,4 @@ export async function checkApiHealth(
 
   return response.status;
 }
+
