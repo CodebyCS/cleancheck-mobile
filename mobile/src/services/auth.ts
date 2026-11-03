@@ -1,7 +1,7 @@
 import { apiUrl as clientApiUrl, HttpClientError, withTimeout } from './httpClient';
 
 export type LoginCredentials = { email: string; password: string; device_name?: string };
-export type AuthUser = { id: number | string; name: string; email: string; role: 'admin' | 'supervisor' | 'service_provider' | 'prestador' };
+export type AuthUser = { id: number | string; name: string; email: string; role: 'admin' | 'supervisor' | 'service_provider' };
 export type LoginResponse = { token: string; expires_at: string; user: AuthUser };
 export type LoginFieldErrors = { email?: string; password?: string };
 export type AuthErrorCode = 'VALIDATION' | 'RATE_LIMITED' | 'NETWORK' | 'SERVER' | 'CONFIGURATION' | 'INVALID_RESPONSE' | 'SESSION_EXPIRED' | 'FORBIDDEN';
@@ -103,7 +103,7 @@ function isAuthUser(value: unknown): value is AuthUser {
     (typeof id === 'number' || typeof id === 'string') &&
     typeof Reflect.get(value, 'name') === 'string' &&
     typeof Reflect.get(value, 'email') === 'string' &&
-    (role === 'admin' || role === 'supervisor' || role === 'service_provider' || role === 'prestador')
+    (role === 'admin' || role === 'supervisor' || role === 'service_provider')
   );
 }
 
