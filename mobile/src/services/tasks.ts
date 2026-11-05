@@ -17,7 +17,7 @@ export type TaskDetail = TaskListItem & {
 };
 
 export type AuthenticatedFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-export type TaskErrorCode = 'CONFIGURATION' | 'NETWORK' | 'SESSION_EXPIRED' | 'NOT_FOUND' | 'SERVER' | 'INVALID_RESPONSE';
+export type TaskErrorCode = 'CONFIGURATION' | 'NETWORK' | 'SESSION_EXPIRED' | 'FORBIDDEN' | 'NOT_FOUND' | 'SERVER' | 'INVALID_RESPONSE';
 
 export class TaskError extends Error {
   constructor(public readonly code: TaskErrorCode, message: string) {
@@ -47,6 +47,9 @@ async function getJson(path: string, authenticatedFetch: AuthenticatedFetch): Pr
   }
   if (response.status === 404) {
     throw new TaskError('NOT_FOUND', 'Esta tarefa já não está disponível para a tua conta.');
+  }
+  if (response.status === 403) {
+    throw new TaskError('FORBIDDEN', 'Já não tens acesso a esta tarefa. A agenda foi atualizada.');
   }
   if (!response.ok) {
     throw new TaskError('SERVER', 'Não foi possível carregar as tarefas. Tenta novamente.');

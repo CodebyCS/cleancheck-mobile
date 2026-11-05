@@ -1,17 +1,21 @@
-# Minhas Tarefas — integração com a API
+# Minhas Tarefas e Agenda — integração com a API
 
 A lista consulta `GET /api/tasks` e o detalhe consulta `GET /api/tasks/{task}` através de `authenticatedFetch`. O Bearer token vem da sessão; a API identifica o prestador e limita o acesso às tarefas atualmente atribuídas. Não há seletor de prestador nem dados fictícios neste percurso.
 
 ## Dados apresentados
 
 - A lista recebe `id`, `property`, `type`, `scheduled_start_at` e `status`. Os cartões não mostram morada nem duração, porque esses dados não fazem parte da resposta da lista.
-- A app agrupa as tarefas, segundo a data local do dispositivo, em **Hoje**, **Próximas** e **Anteriores**. O progresso do dia conta apenas tarefas com `status: completed` devolvido pela API.
+- Os separadores **Tarefas** e **Agenda** usam a mesma lista autenticada. **Tarefas** mostra **Hoje**, **Próximas** e, quando existem, **Anteriores**, além do progresso do dia. **Agenda** mostra apenas **Hoje** e **Próximas**. A classificação usa a data local do dispositivo e os horários de `scheduled_start_at`; cada secção é ordenada cronologicamente.
 - O detalhe consulta a tarefa pelo ID e acrescenta `address`, `scheduled_end_at`, `started_at` e `completed_at` quando disponíveis.
-- A lista é consultada novamente ao voltar do detalhe, ao regressar ao separador **Tarefas** e ao tocar em **Atualizar**.
+- Ao tocar num cartão em qualquer separador, a app consulta o detalhe pelo ID. A lista é consultada novamente ao voltar do detalhe, ao regressar a **Tarefas** ou **Agenda**, e ao tocar em **Atualizar**.
 
 ## Estados e erros
 
-Durante a consulta, a app mostra carregamento. Uma resposta `[]` apresenta **Sem tarefas**. Em caso de erro de rede, servidor ou resposta inválida, apresenta uma mensagem e a opção **Tentar novamente**. Se o detalhe devolver `404`, informa que a tarefa deixou de estar disponível e atualiza a lista. Uma resposta `401` limpa a sessão através do `AuthContext` e regressa ao login.
+Durante a consulta, a app mostra carregamento. Uma resposta `[]` apresenta **Sem tarefas**; a Agenda também apresenta um estado vazio se a lista só contiver tarefas anteriores. Em caso de erro de rede, servidor ou resposta inválida, apresenta uma mensagem e a opção **Tentar novamente**. Se o detalhe devolver `403` ou `404`, informa que a tarefa deixou de estar acessível e atualiza a lista. Uma resposta `401` limpa a sessão através do `AuthContext` e regressa ao login.
+
+## Avisos ligados a tarefas — dependência pendente
+
+O separador **Avisos** continua provisório. O mobile e a API consultados não definem um contrato de avisos que forneça um identificador de tarefa nem um endpoint de consulta de avisos. Por isso, ainda não é possível abrir um detalhe autorizado a partir de um aviso sem inventar o contrato. É necessário alinhar com o Emerson o formato e o ID de tarefa; depois, a app deve consultar `GET /api/tasks/{id}` ao abrir o aviso e tratar tarefa removida, acesso revogado, falha de rede e sessão expirada.
 
 ## Simulação da limpeza
 

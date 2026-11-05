@@ -95,10 +95,10 @@ export default function HomeScreen() {
   return (
     <View style={styles.screen}>
       {activeTab === 'tasks' && <TasksScreen tasks={tasks} userName={session?.user.name ?? ''} onOpenTask={(task) => void openTask(task.id)} onRefresh={() => void refreshTasks()} loading={loading} error={listError} />}
-      {activeTab === 'calendar' && <PlaceholderScreen title="Agenda" message="A agenda será ligada à API numa próxima fase." />}
+      {activeTab === 'calendar' && <TasksScreen tasks={tasks} userName={session?.user.name ?? ''} onOpenTask={(task) => void openTask(task.id)} onRefresh={() => void refreshTasks()} loading={loading} error={listError} title="Agenda" showProgress={false} showPrevious={false} />}
       {activeTab === 'notices' && <PlaceholderScreen title="Avisos" message="Ainda não existem avisos disponíveis." />}
       {activeTab === 'profile' && <ProfileScreen />}
-      <MainTabBar active={activeTab} onSelect={(tab) => { if (tab === 'tasks' && activeTab !== 'tasks') void refreshTasks(); setActiveTab(tab); }} />
+      <MainTabBar active={activeTab} onSelect={(tab) => { if ((tab === 'tasks' || tab === 'calendar') && activeTab !== tab) void refreshTasks(); setActiveTab(tab); }} />
     </View>
   );
 }
