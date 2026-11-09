@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
+import InfoRow from '../components/InfoRow';
+import ProfileAvatar from '../components/ProfileAvatar';
 import { AuthError } from '../services/auth';
 import { getProfile, Profile } from '../services/profile';
 
@@ -8,13 +10,6 @@ type LoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string; sessionExpired: boolean }
   | { status: 'ready'; profile: Profile };
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
-  return (first + last).toUpperCase() || '?';
-}
 
 function formatAddress(profile: Profile): string | null {
   const locality = [profile.postal_code, profile.city].filter(Boolean).join(' ');
@@ -26,13 +21,11 @@ export default function ProfileScreen() {
   const { signOut, authenticatedFetch } = useAuth();
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [refreshing, setRefreshing] = useState(false);
-  const [photoFailed, setPhotoFailed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   const loadProfile = useCallback(async () => {
     try {
       const profile = await getProfile(authenticatedFetch);
-      setPhotoFailed(false);
       setState({ status: 'ready', profile });
     } catch (error) {
       const sessionExpired = error instanceof AuthError && error.code === 'SESSION_EXPIRED';
@@ -114,27 +107,20 @@ export default function ProfileScreen() {
       {state.status === 'ready' && (
         <View style={styles.card}>
           <View style={styles.header}>
-            {state.profile.photo_url && !photoFailed ? (
-              <Image
-                source={{ uri: state.profile.photo_url }}
-                style={styles.photo}
-                accessibilityLabel={`Fotografia de ${state.profile.name}`}
-                onError={() => setPhotoFailed(true)}
-              />
-            ) : (
-              <View style={[styles.photo, styles.initials]} accessibilityLabel="Sem fotografia">
-                <Text style={styles.initialsText}>{initialsOf(state.profile.name)}</Text>
-              </View>
-            )}
+            <ProfileAvatar
+              key={state.profile.photo_url ?? 'no-photo'}
+              name={state.profile.name}
+              photoUrl={state.profile.photo_url}
+            />
             <View style={styles.headerText}>
               <Text style={styles.name}>{state.profile.name}</Text>
               <Text style={styles.role}>Prestador</Text>
             </View>
           </View>
 
-          <ProfileRow label="E-mail" value={state.profile.email} />
-          <ProfileRow label="Telefone" value={state.profile.phone} />
-          <ProfileRow label="Morada" value={formatAddress(state.profile) ?? 'Não indicada'} />
+          <InfoRow label="E-mail" value={state.profile.email} />
+          <InfoRow label="Telefone" value={state.profile.phone} />
+          <InfoRow label="Morada" value={formatAddress(state.profile)} emptyText="Não indicada" />
         </View>
       )}
 
@@ -159,15 +145,6 @@ export default function ProfileScreen() {
   );
 }
 
-function ProfileRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   page: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 42, paddingBottom: 112, backgroundColor: '#F5F8FC' },
   brand: { color: '#1769E8', fontSize: 17, fontWeight: '700' },
@@ -177,14 +154,8 @@ const styles = StyleSheet.create({
   muted: { color: '#53657D', fontSize: 15 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
   headerText: { flex: 1 },
-  photo: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#E7F0FF' },
-  initials: { alignItems: 'center', justifyContent: 'center' },
-  initialsText: { color: '#315A92', fontSize: 24, fontWeight: '800' },
   name: { color: '#172B4D', fontSize: 21, fontWeight: '800' },
   role: { alignSelf: 'flex-start', color: '#315A92', backgroundColor: '#E7F0FF', fontSize: 12, fontWeight: '800', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 12, marginTop: 8, overflow: 'hidden' },
-  row: { paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#EEF2F7' },
-  rowLabel: { color: '#8290A3', fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
-  rowValue: { color: '#172B4D', fontSize: 15, marginTop: 3 },
   errorCard: { borderColor: '#F3C2C2', backgroundColor: '#FFF7F7' },
   errorTitle: { color: '#A52323', fontSize: 17, fontWeight: '800' },
   errorText: { color: '#53657D', fontSize: 15, marginTop: 6, lineHeight: 21 },
