@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import InfoRow from '../components/InfoRow';
 import ProfileAvatar from '../components/ProfileAvatar';
 import { AuthError } from '../services/auth';
+import CameraTrialScreen from './CameraTrialScreen';
 import { getProfile, Profile } from '../services/profile';
 
 type LoadState =
@@ -22,6 +23,7 @@ export default function ProfileScreen() {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showCameraTrial, setShowCameraTrial] = useState(false);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -68,6 +70,11 @@ export default function ProfileScreen() {
     } finally {
       setLoggingOut(false);
     }
+  }
+
+  // The camera trial opens inside the profile tab, without changing the app navigation.
+  if (showCameraTrial) {
+    return <CameraTrialScreen onBack={() => setShowCameraTrial(false)} />;
   }
 
   return (
@@ -124,6 +131,18 @@ export default function ProfileScreen() {
         </View>
       )}
 
+      {state.status === 'ready' && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityHint="Abre o ensaio de fotografia e vídeo"
+          onPress={() => setShowCameraTrial(true)}
+          style={({ pressed }) => [styles.trialButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.trialTitle}>Ensaio de câmara</Text>
+          <Text style={styles.trialText}>Testar fotografia, vídeo e envio para a API</Text>
+        </Pressable>
+      )}
+
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled: loggingOut, busy: loggingOut }}
@@ -161,6 +180,9 @@ const styles = StyleSheet.create({
   errorText: { color: '#53657D', fontSize: 15, marginTop: 6, lineHeight: 21 },
   retryButton: { marginTop: 14, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#1769E8' },
   retryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  trialButton: { backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1.5, borderColor: '#1769E8', paddingVertical: 14, paddingHorizontal: 16, marginBottom: 14 },
+  trialTitle: { color: '#1769E8', fontSize: 16, fontWeight: '800' },
+  trialText: { color: '#53657D', fontSize: 13, marginTop: 3 },
   logoutButton: { minHeight: 54, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1.5, borderColor: '#C73535', backgroundColor: '#FFFFFF' },
   logoutText: { color: '#A52323', fontSize: 16, fontWeight: '800' },
   note: { color: '#8290A3', fontSize: 13, lineHeight: 19, marginTop: 12, textAlign: 'center' },

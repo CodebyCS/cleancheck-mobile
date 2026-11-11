@@ -176,7 +176,8 @@ export default function CameraTrialScreen({ onBack }: CameraTrialScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 20, paddingBottom: 40, backgroundColor: '#F6F8FB', flexGrow: 1 },
+  // Same spacing as the profile tab, leaving room for the tab bar.
+  page: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 42, paddingBottom: 112, backgroundColor: '#F5F8FC' },
   back: { alignSelf: 'flex-start', paddingVertical: 8, marginBottom: 8 },
   backText: { color: '#1769E8', fontSize: 15, fontWeight: '700' },
   eyebrow: { color: '#8290A3', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
