@@ -17,6 +17,21 @@ Durante a consulta, a app mostra carregamento. Uma resposta `[]` apresenta **Sem
 
 O separador **Avisos** continua provisório. O mobile e a API consultados não definem um contrato de avisos que forneça um identificador de tarefa nem um endpoint de consulta de avisos. Por isso, ainda não é possível abrir um detalhe autorizado a partir de um aviso sem inventar o contrato. É necessário alinhar com o Emerson o formato e o ID de tarefa; depois, a app deve consultar `GET /api/tasks/{id}` ao abrir o aviso e tratar tarefa removida, acesso revogado, falha de rede e sessão expirada.
 
+## Comunicar um impedimento
+
+O prestador autenticado regista um impedimento na tarefa atualmente atribuída através de `POST /api/tasks/{id}/impediments`. O pedido envia `reason` (texto livre obrigatório, até 120 caracteres), `description` (opcional ou `null`, até 2000 caracteres) e `idempotency_key` (UUID). A app guarda o payload pendente e a chave no SecureStore para poder repetir exatamente o mesmo pedido depois de uma falha ambígua de rede ou timeout. O rascunho pendente é removido após sucesso e também ao terminar sessão ou ao expirar a sessão.
+
+Uma criação nova devolve `201 Created`. Repetir o mesmo payload com a mesma chave devolve `200 OK` com o impedimento existente. Reutilizar a chave com conteúdo diferente devolve `409 Conflict`. Os restantes erros são tratados assim:
+
+| HTTP | Significado |
+| --- | --- |
+| `401` | Sessão ausente/inválida ou conta inativa. |
+| `403` | O utilizador não pode comunicar impedimentos ou já não está atribuído à tarefa. |
+| `404` | A tarefa não existe. |
+| `422` | Dados inválidos; a API devolve erros por campo. |
+
+O envio bem-sucedido não altera o estado da tarefa nem a atribuição atual. Por enquanto, a API também aceita impedimentos em tarefas `completed` e `cancelled` se o prestador continuar atribuído; a regra definitiva continua pendente de decisão da equipa. Este fluxo não implementa upload de fotografias ou outras provas.
+
 ## Simulação da limpeza
 
 Os botões de vídeo e conclusão no detalhe continuam identificados como simulação local. Não abrem a câmara, não enviam ficheiros e não alteram a tarefa na API. O estado e o progresso da lista refletem apenas dados devolvidos pela API.

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import TaskImpedimentForm from '../components/TaskImpedimentForm';
 import { taskDateLabel, taskStatusLabel, taskTypeLabel, TaskDetail } from '../services/tasks';
 
 type TaskDetailScreenProps = { task: TaskDetail; onBack: () => void };
@@ -72,6 +73,8 @@ export default function TaskDetailScreen({ task, onBack }: TaskDetailScreenProps
       <View style={styles.notice}><Text style={styles.noticeText}>Simulação local: os vídeos não são gravados nem enviados e concluir aqui não altera a tarefa na API.</Text></View>
       <VideoStep sectionLabel="1. ANTES DA LIMPEZA" title="Vídeo Inicial" description="Simula o registo do estado do imóvel antes da limpeza." done={initialVideoDone} disabled={alreadyCompleted || simulationComplete} onRegister={() => setInitialVideoDone(true)} />
       <VideoStep sectionLabel="2. DEPOIS DA LIMPEZA" title="Vídeo Final" description="Simula o registo do estado do imóvel depois da limpeza." done={finalVideoDone} disabled={!initialVideoDone || alreadyCompleted || simulationComplete} onRegister={() => setFinalVideoDone(true)} />
+
+      <TaskImpedimentForm taskId={task.id} />
 
       <Pressable accessibilityRole="button"
         accessibilityState={{ disabled: !initialVideoDone || !finalVideoDone || alreadyCompleted || simulationComplete }}

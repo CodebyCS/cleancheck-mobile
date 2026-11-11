@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AuthError, AuthUser, getCurrentUser, login, LoginCredentials, logout } from '../services/auth';
 import { readAuthSession, removeAuthSession, saveAuthSession } from '../services/authTokenStorage';
+import { clearPendingTaskImpediments } from '../services/pendingTaskImpediments';
 import { Alert } from 'react-native';
 
 type AuthSession = { token: string; user: AuthUser; expiresAt: string };
@@ -105,10 +106,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
  const clearLocalSession = useCallback(async () => {
-  // O estado é limpo mesmo se o armazenamento seguro não responder.
-  // Assim, a navegação regressa sempre ao login durante o logout.
+  // A sessão e os rascunhos de impedimento pertencem à identidade atual.
+  // O estado é sempre limpo mesmo se o armazenamento seguro não responder.
   try {
-    await removeAuthSession();
+    await Promise.allSettled([removeAuthSession(), clearPendingTaskImpediments()]);
   } finally {
     setSession(null);
   }
