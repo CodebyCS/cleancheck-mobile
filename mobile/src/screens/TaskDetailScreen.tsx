@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, TextInput } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, TextInput } from 'react-native'
+import TaskImpedimentForm from '../components/TaskImpedimentForm'
 import { taskDateLabel, taskStatusLabel, taskTypeLabel, TaskDetail } from '../services/tasks';
 import { useAuth } from '../auth/AuthContext';
 import { getMyTask, startMyTask, updateMyTaskNotes, completeMyTask, TaskError } from "../services/tasks";
@@ -211,6 +212,7 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
         </Pressable>
       )}
 
+      <TaskImpedimentForm taskId={task.id} />
     </ScrollView>
   );
 }
