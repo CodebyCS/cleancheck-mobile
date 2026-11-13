@@ -23,7 +23,15 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "A CleanCheck usa a câmara para registar fotografias e vídeos das limpezas.",
+          "microphonePermission": "A CleanCheck usa o microfone para gravar o som dos vídeos das limpezas.",
+          "photosPermission": "A CleanCheck acede às fotografias para enviar provas das limpezas."
+        }
+      ]
     ]
   }
 }
