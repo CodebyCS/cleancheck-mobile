@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { taskDateLabel, taskStatusLabel, taskTypeLabel, TaskDetail } from '../services/tasks';
 
-type TaskDetailScreenProps = { task: TaskDetail; onBack: () => void };
+type TaskDetailScreenProps = { task: TaskDetail; onBack: () => void; backLabel?: string };
 
 function VideoStep({ sectionLabel, title, description, done, disabled, onRegister }: {
   sectionLabel: string; title: string; description: string;
@@ -30,7 +30,7 @@ function VideoStep({ sectionLabel, title, description, done, disabled, onRegiste
   );
 }
 
-export default function TaskDetailScreen({ task, onBack }: TaskDetailScreenProps) {
+export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tarefas' }: TaskDetailScreenProps) {
   const alreadyCompleted = task.status === 'completed';
   const [initialVideoDone, setInitialVideoDone] = useState(false);
   const [finalVideoDone, setFinalVideoDone] = useState(false);
@@ -40,7 +40,7 @@ export default function TaskDetailScreen({ task, onBack }: TaskDetailScreenProps
   return (
     <ScrollView contentContainerStyle={styles.page} contentInsetAdjustmentBehavior="automatic">
       <View style={styles.topRow}>
-        <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ Minhas Tarefas</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ {backLabel}</Text></Pressable>
       </View>
 
       <View style={styles.headingRow}>

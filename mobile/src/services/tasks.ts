@@ -94,11 +94,22 @@ export async function listMyTasks(authenticatedFetch: AuthenticatedFetch): Promi
 }
 
 export async function getMyTask(id: number, authenticatedFetch: AuthenticatedFetch): Promise<TaskDetail> {
-  const payload = await getJson(`/tasks/${id}`, authenticatedFetch);
-  if (!isTaskDetail(payload) || payload.id !== id) {
+  const payload = await getJson(`/my/tasks/${id}`, authenticatedFetch);
+  const task = payload && typeof payload === 'object' && 'data' in payload
+    ? (payload as { data: unknown }).data
+    : null;
+  if (!task || typeof task !== 'object') {
     throw new TaskError('INVALID_RESPONSE', 'O detalhe da tarefa devolvido pela API é inválido.');
   }
-  return payload;
+  const responseTask = task as Record<string, unknown>;
+  const detail = {
+    ...responseTask,
+    address: responseTask.property_address ?? responseTask.address ?? null,
+  };
+  if (!isTaskDetail(detail) || detail.id !== id) {
+    throw new TaskError('INVALID_RESPONSE', 'O detalhe da tarefa devolvido pela API é inválido.');
+  }
+  return detail;
 }
 
 export function taskTypeLabel(type: string): string {
