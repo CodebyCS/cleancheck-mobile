@@ -1,41 +1,85 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, TextInput } from 'react-native';
 import { taskDateLabel, taskStatusLabel, taskTypeLabel, TaskDetail } from '../services/tasks';
+import { useAuth } from '../auth/AuthContext';
+import { getMyTask, startMyTask, updateMyTaskNotes, completeMyTask } from "../services/tasks";
 
 type TaskDetailScreenProps = { task: TaskDetail; onBack: () => void; backLabel?: string };
 
-function VideoStep({ sectionLabel, title, description, done, disabled, onRegister }: {
-  sectionLabel: string; title: string; description: string;
-  done: boolean; disabled: boolean; onRegister: () => void;
-}) {
-  return (
-    <View>
-      <Text style={styles.sectionLabel}>{sectionLabel}</Text>
-      <View style={[styles.stepCard, disabled && styles.stepDisabled]}>
-        <View style={styles.stepHeader}>
-          <Text style={styles.stepTitle}>{title}</Text>
-          <Text style={[styles.stepState, done && styles.stepStateDone]}>{done ? 'SIMULADO' : disabled ? 'BLOQUEADO' : 'PENDENTE'}</Text>
-        </View>
-        <Text style={styles.stepDescription}>{description}</Text>
-        <View style={styles.buttonRow}>
-          <Pressable accessibilityRole="button" disabled={disabled || done} onPress={onRegister} style={({ pressed }) => [styles.secondaryButton, (disabled || done) && styles.buttonDisabled, pressed && !disabled && !done && styles.pressed]}>
-            <Text style={styles.secondaryButtonText}>{done ? 'Vídeo simulado' : 'Gravar Vídeo'}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" disabled={disabled || done} onPress={onRegister} style={({ pressed }) => [styles.secondaryButton, (disabled || done) && styles.buttonDisabled, pressed && !disabled && !done && styles.pressed]}>
-            <Text style={styles.secondaryButtonText}>Enviar Vídeo</Text>
-          </Pressable>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tarefas' }: TaskDetailScreenProps) {
-  const alreadyCompleted = task.status === 'completed';
-  const [initialVideoDone, setInitialVideoDone] = useState(false);
-  const [finalVideoDone, setFinalVideoDone] = useState(false);
-  const [simulationComplete, setSimulationComplete] = useState(false);
-  const currentStage = simulationComplete ? 3 : finalVideoDone ? 2 : initialVideoDone ? 1 : 0;
+  const [currentTask, setCurrentTask] = useState(task);
+  const alreadyCompleted = currentTask.status === 'completed';
+
+  const [providerNotes, setProviderNotes] = useState(task.provider_notes ?? '');
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesMessage, setNotesMessage] = useState('');
+
+  const [completing, setCompleting] = useState(false);
+
+  const { authenticatedFetch } = useAuth();
+  const [starting, setStarting] = useState(false);
+  const [actionError, setActionError] = useState('');
+
+  async function handleStart() {
+    setStarting(true);
+    setActionError('');
+
+    try {
+      await startMyTask(currentTask.id, authenticatedFetch);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : 'Não foi possível iniciar a tarefa.',
+      );
+      setStarting(false);
+      return;
+    }
+
+    try {
+      setCurrentTask(await getMyTask(currentTask.id, authenticatedFetch));
+    } catch {
+      setActionError(
+        'A API iniciou a tarefa, mas não foi possível atualizar os dados exibidos. Volte à lista e tente novamente.',
+      );
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  async function handleSaveNotes() {
+  setSavingNotes(true);
+  setActionError('');
+  setNotesMessage('');
+
+    try {
+      const notes = providerNotes.trim() === '' ? null : providerNotes;
+
+      await updateMyTaskNotes(currentTask.id, notes, authenticatedFetch);
+      setCurrentTask(await getMyTask(currentTask.id, authenticatedFetch));
+      setNotesMessage('Notas guardadas.');
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : 'Não foi possível guardar as notas.',
+      );
+    } finally {
+      setSavingNotes(false);
+    }
+  }
+
+  async function handleComplete() {
+    setCompleting(true);
+    setActionError('');
+
+    try {
+      await completeMyTask(currentTask.id, authenticatedFetch);
+      setCurrentTask(await getMyTask(currentTask.id, authenticatedFetch));
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : 'Não foi possível concluir a tarefa.',
+      );
+    } finally {
+      setCompleting(false);
+    }
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.page} contentInsetAdjustmentBehavior="automatic">
@@ -46,40 +90,97 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
       <View style={styles.headingRow}>
         <View style={styles.headingText}>
           <Text style={styles.eyebrow}>Detalhe da tarefa</Text>
-          <Text style={styles.title}>{task.property ?? 'Imóvel sem nome'}</Text>
-          <Text style={styles.address}>{task.address ?? 'Morada não disponível'}</Text>
+          <Text style={styles.title}>{currentTask.property ?? 'Imóvel sem nome'}</Text>
+          <Text style={styles.address}>{currentTask.address ?? 'Morada não disponível'}</Text>
         </View>
-        <Text style={[styles.status, alreadyCompleted && styles.statusDone]}>{taskStatusLabel(task.status)}</Text>
+        <Text style={[styles.status, alreadyCompleted && styles.statusDone]}>{taskStatusLabel(currentTask.status)}</Text>
       </View>
 
       <View style={styles.infoCard}>
-        <View><Text style={styles.infoLabel}>Data e hora</Text><Text style={styles.infoValue}>{taskDateLabel(task.scheduled_start_at)}</Text></View>
-        <View><Text style={styles.infoLabel}>Prazo</Text><Text style={styles.infoValue}>{taskDateLabel(task.scheduled_end_at)}</Text></View>
-        <View><Text style={styles.infoLabel}>Tipo</Text><Text style={styles.infoValue}>{taskTypeLabel(task.type)}</Text></View>
-        {task.started_at && <View><Text style={styles.infoLabel}>Início registado</Text><Text style={styles.infoValue}>{taskDateLabel(task.started_at)}</Text></View>}
-        {task.completed_at && <View><Text style={styles.infoLabel}>Conclusão registada</Text><Text style={styles.infoValue}>{taskDateLabel(task.completed_at)}</Text></View>}
+        <View><Text style={styles.infoLabel}>Data e hora</Text><Text style={styles.infoValue}>{taskDateLabel(currentTask.scheduled_start_at)}</Text></View>
+        <View><Text style={styles.infoLabel}>Prazo</Text><Text style={styles.infoValue}>{taskDateLabel(currentTask.scheduled_end_at)}</Text></View>
+        <View><Text style={styles.infoLabel}>Tipo</Text><Text style={styles.infoValue}>{taskTypeLabel(currentTask.type)}</Text></View>
+        {currentTask.started_at && <View><Text style={styles.infoLabel}>Início registado</Text><Text style={styles.infoValue}>{taskDateLabel(currentTask.started_at)}</Text></View>}
+        {currentTask.completed_at && <View><Text style={styles.infoLabel}>Conclusão registada</Text><Text style={styles.infoValue}>{taskDateLabel(currentTask.completed_at)}</Text></View>}
       </View>
 
-      <View style={styles.timeline} accessibilityLabel="Progresso da simulação">
-        {['Início', 'Final', 'Pronto'].map((label, index) => (
-          <View key={label} style={styles.timelineItem}>
-            <View style={[styles.timelineDot, index <= currentStage && styles.timelineDotActive]} />
-            <Text style={[styles.timelineLabel, index <= currentStage && styles.timelineLabelActive]}>{label}</Text>
-          </View>
-        ))}
-      </View>
+      {currentTask.status === 'in_progress' && (
+        <View style={styles.stepCard}>
+          <Text style={styles.stepTitle}>Notas do prestador</Text>
+          <TextInput
+            accessibilityLabel="Notas do prestador"
+            value={providerNotes}
+            onChangeText={setProviderNotes}
+            placeholder="Ex.: apartamento muito sujo; copo quebrado."
+            multiline
+            maxLength={2000}
+            textAlignVertical="top"
+            style={styles.notesInput}
+          />
+          <Pressable
+            accessibilityRole="button"
+            disabled={savingNotes || starting}
+            onPress={() => void handleSaveNotes()}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              (savingNotes || starting) && styles.buttonDisabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {savingNotes ? 'A guardar...' : 'Guardar notas'}
+            </Text>
+          </Pressable>
+          {notesMessage !== '' && (
+            <Text style={styles.notesMessage}>{notesMessage}</Text>
+          )}
+        </View>
+      )}
 
-      <View style={styles.notice}><Text style={styles.noticeText}>Simulação local: os vídeos não são gravados nem enviados e concluir aqui não altera a tarefa na API.</Text></View>
-      <VideoStep sectionLabel="1. ANTES DA LIMPEZA" title="Vídeo Inicial" description="Simula o registo do estado do imóvel antes da limpeza." done={initialVideoDone} disabled={alreadyCompleted || simulationComplete} onRegister={() => setInitialVideoDone(true)} />
-      <VideoStep sectionLabel="2. DEPOIS DA LIMPEZA" title="Vídeo Final" description="Simula o registo do estado do imóvel depois da limpeza." done={finalVideoDone} disabled={!initialVideoDone || alreadyCompleted || simulationComplete} onRegister={() => setFinalVideoDone(true)} />
+      {currentTask.status === 'in_progress' && (
+        <>
+          <Text style={styles.mediaNotice}>
+            A conclusão não exige mídia. O envio de arquivos de prova ainda não está disponível na API.
+          </Text>
 
-      <Pressable accessibilityRole="button"
-        accessibilityState={{ disabled: !initialVideoDone || !finalVideoDone || alreadyCompleted || simulationComplete }}
-        disabled={!initialVideoDone || !finalVideoDone || alreadyCompleted || simulationComplete}
-        onPress={() => setSimulationComplete(true)}
-        style={({ pressed }) => [styles.completeButton, (!initialVideoDone || !finalVideoDone || alreadyCompleted || simulationComplete) && styles.completeButtonDisabled, pressed && styles.pressed]}>
-        <Text style={styles.completeButtonText}>{simulationComplete ? 'SIMULAÇÃO CONCLUÍDA' : 'SIMULAR CONCLUSÃO'}</Text>
-      </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            disabled={completing || savingNotes || starting}
+            onPress={() => void handleComplete()}
+            style={({ pressed }) => [
+              styles.completeButton,
+              (completing || savingNotes || starting) && styles.completeButtonDisabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.completeButtonText}>
+              {completing ? 'A concluir...' : 'Concluir tarefa'}
+            </Text>
+          </Pressable>
+        </>
+      )}
+
+      {actionError !== '' && (
+        <Text style={styles.actionError}>{actionError}</Text>
+      )}
+
+      {currentTask.status === 'pending' && (
+        <Pressable
+          accessibilityRole="button"
+          disabled={starting}
+          onPress={() => void handleStart()}
+          style={({ pressed }) => [
+            styles.completeButton,
+            starting && styles.completeButtonDisabled,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.completeButtonText}>
+            {starting ? 'A iniciar...' : 'Iniciar tarefa'}
+          </Text>
+        </Pressable>
+      )}
+
     </ScrollView>
   );
 }
@@ -122,4 +223,8 @@ const styles = StyleSheet.create({
   completeButtonDisabled: { backgroundColor: '#A9C7F4' },
   completeButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   pressed: { opacity: 0.75 },
+  actionError: {color: '#A52323', fontSize: 14, marginTop: 14},
+  notesInput: { minHeight: 90, borderWidth: 1, borderColor: '#D4DCE8', borderRadius: 12, padding: 12, color: '#26364B',fontSize: 15, marginTop: 10, marginBottom: 12,},
+  notesMessage: { color: '#146B3A', fontSize: 14, marginTop: 10 },
+  mediaNotice: { color: '#53657D', fontSize: 13, lineHeight: 19, marginTop: 16 },
 });

@@ -14,6 +14,7 @@ export type TaskDetail = TaskListItem & {
   scheduled_end_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  provider_notes: string | null;
 };
 
 export type AuthenticatedFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -34,11 +35,12 @@ function taskUrl(path: string): string {
   }
 }
 
-async function getJson(path: string, authenticatedFetch: AuthenticatedFetch): Promise<unknown> {
+async function getJson(path: string, authenticatedFetch: AuthenticatedFetch, init: RequestInit = {},): Promise<unknown> {
   const url = taskUrl(path);
   let response: Response;
+
   try {
-    response = await fetchWithTimeout(url, {}, authenticatedFetch);
+    response = await fetchWithTimeout(url, init, authenticatedFetch);
   } catch (error) {
     if (error instanceof AuthError && error.code === 'SESSION_EXPIRED') {
       throw new TaskError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
@@ -61,55 +63,168 @@ async function getJson(path: string, authenticatedFetch: AuthenticatedFetch): Pr
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
 }
 
-function isTaskListItem(value: unknown): value is TaskListItem {
-  if (!value || typeof value !== 'object') return false;
-  const item = value as Record<string, unknown>;
-  return Number.isInteger(item.id) && typeof item.id === 'number'
-    && isNullableString(item.property)
-    && typeof item.type === 'string'
-    && typeof item.scheduled_start_at === 'string'
-    && !Number.isNaN(Date.parse(item.scheduled_start_at))
-    && typeof item.status === 'string';
-}
-
-function isTaskDetail(value: unknown): value is TaskDetail {
-  if (!isTaskListItem(value)) return false;
-  const item = value as unknown as Record<string, unknown>;
-  return isNullableString(item.address)
-    && isNullableString(item.scheduled_end_at)
-    && isNullableString(item.started_at)
-    && isNullableString(item.completed_at);
-}
-
-export async function listMyTasks(authenticatedFetch: AuthenticatedFetch): Promise<TaskListItem[]> {
-  const payload = await getJson('/tasks', authenticatedFetch);
-  if (!Array.isArray(payload) || !payload.every(isTaskListItem)) {
-    throw new TaskError('INVALID_RESPONSE', 'A lista de tarefas devolvida pela API é inválida.');
-  }
-  return payload;
-}
-
-export async function getMyTask(id: number, authenticatedFetch: AuthenticatedFetch): Promise<TaskDetail> {
-  const payload = await getJson(`/my/tasks/${id}`, authenticatedFetch);
-  const task = payload && typeof payload === 'object' && 'data' in payload
-    ? (payload as { data: unknown }).data
-    : null;
-  if (!task || typeof task !== 'object') {
-    throw new TaskError('INVALID_RESPONSE', 'O detalhe da tarefa devolvido pela API é inválido.');
-  }
-  const responseTask = task as Record<string, unknown>;
-  const detail = {
-    ...responseTask,
-    address: responseTask.property_address ?? responseTask.address ?? null,
+type TaskPageResponse = {
+  data: unknown[];
+  meta: {
+    current_page: number;
+    last_page: number;
   };
-  if (!isTaskDetail(detail) || detail.id !== id) {
-    throw new TaskError('INVALID_RESPONSE', 'O detalhe da tarefa devolvido pela API é inválido.');
+};
+
+type TaskDetailResponse = TaskListItem & {
+  property_address: string | null;
+  scheduled_end_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  provider_notes: string | null;
+};
+
+function isTaskListItem(value: unknown): value is TaskListItem {
+  if (!isRecord(value)) return false;
+
+  return Number.isInteger(value.id)
+    && typeof value.id === 'number'
+    && isNullableString(value.property)
+    && typeof value.type === 'string'
+    && typeof value.scheduled_start_at === 'string'
+    && !Number.isNaN(Date.parse(value.scheduled_start_at))
+    && typeof value.status === 'string';
+}
+
+function isTaskPageResponse(value: unknown): value is TaskPageResponse {
+  if (!isRecord(value) || !Array.isArray(value.data) || !isRecord(value.meta)) {
+    return false;
   }
-  return detail;
+
+  const currentPage = value.meta.current_page;
+  const lastPage = value.meta.last_page;
+
+  return typeof currentPage === 'number'
+    && Number.isInteger(currentPage)
+    && currentPage >= 1
+    && typeof lastPage === 'number'
+    && Number.isInteger(lastPage)
+    && lastPage >= currentPage;
+}
+
+function isTaskDetailResponse(value: unknown): value is TaskDetailResponse {
+  if (!isRecord(value)) return false;
+
+  if (
+    !isNullableString(value.property_address)
+    || !isNullableString(value.scheduled_end_at)
+    || !isNullableString(value.started_at)
+    || !isNullableString(value.completed_at)
+    || !isNullableString(value.provider_notes)
+  ) {
+    return false;
+  }
+
+  return isTaskListItem(value);
+}
+
+
+export async function listMyTasks(
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<TaskListItem[]> {
+  const tasks: TaskListItem[] = [];
+  let page = 1;
+  let lastPage = 1;
+
+  while (page <= lastPage) {
+    const payload = await getJson(
+      `/my/tasks?per_page=100&page=${page}`,
+      authenticatedFetch,
+    );
+
+    if (!isTaskPageResponse(payload) || payload.meta.current_page !== page) {
+      throw new TaskError(
+        'INVALID_RESPONSE',
+        'A lista de tarefas devolvida pela API é inválida.',
+      );
+    }
+
+    if (!payload.data.every(isTaskListItem)) {
+      throw new TaskError(
+        'INVALID_RESPONSE',
+        'A lista de tarefas devolvida pela API é inválida.',
+      );
+    }
+
+    tasks.push(...payload.data);
+    lastPage = payload.meta.last_page;
+    page += 1;
+  }
+
+  return tasks;
+}
+
+export async function getMyTask(
+  id: number,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<TaskDetail> {
+  const payload = await getJson(`/my/tasks/${id}`, authenticatedFetch);
+
+  if (
+    !isRecord(payload)
+    || !isTaskDetailResponse(payload.data)
+    || payload.data.id !== id
+  ) {
+    throw new TaskError(
+      'INVALID_RESPONSE',
+      'O detalhe da tarefa devolvido pela API é inválido.',
+    );
+  }
+
+  const { property_address, ...task } = payload.data;
+
+  return {
+    ...task,
+    address: property_address,
+  };
+}
+
+export async function startMyTask(
+  id: number,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<void> {
+  await getJson(`/my/tasks/${id}/start`, authenticatedFetch, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  });
+}
+
+export async function completeMyTask(
+  id: number,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<void> {
+  await getJson(`/my/tasks/${id}/complete`, authenticatedFetch, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  });
+}
+
+export async function updateMyTaskNotes(
+  id: number,
+  providerNotes: string | null,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<void> {
+  await getJson(`/my/tasks/${id}/notes`, authenticatedFetch, {
+    method: 'PATCH',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ provider_notes: providerNotes }),
+  });
 }
 
 export function taskTypeLabel(type: string): string {
