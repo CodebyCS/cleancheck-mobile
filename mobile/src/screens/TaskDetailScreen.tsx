@@ -4,9 +4,9 @@ import { taskDateLabel, taskStatusLabel, taskTypeLabel, TaskDetail } from '../se
 import { useAuth } from '../auth/AuthContext';
 import { getMyTask, startMyTask, updateMyTaskNotes, completeMyTask } from "../services/tasks";
 
-type TaskDetailScreenProps = { task: TaskDetail; onBack: () => void };
+type TaskDetailScreenProps = { task: TaskDetail; onBack: () => void; backLabel?: string };
 
-export default function TaskDetailScreen({ task, onBack }: TaskDetailScreenProps) {
+export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tarefas' }: TaskDetailScreenProps) {
   const [currentTask, setCurrentTask] = useState(task);
   const alreadyCompleted = currentTask.status === 'completed';
 
@@ -84,7 +84,7 @@ export default function TaskDetailScreen({ task, onBack }: TaskDetailScreenProps
   return (
     <ScrollView contentContainerStyle={styles.page} contentInsetAdjustmentBehavior="automatic">
       <View style={styles.topRow}>
-        <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ Minhas Tarefas</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}><Text style={styles.back}>‹ {backLabel}</Text></Pressable>
       </View>
 
       <View style={styles.headingRow}>

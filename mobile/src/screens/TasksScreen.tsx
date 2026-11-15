@@ -8,6 +8,9 @@ type TasksScreenProps = {
   onRefresh: () => void;
   loading: boolean;
   error: string | null;
+  title?: string;
+  showProgress?: boolean;
+  showPrevious?: boolean;
 };
 
 function TaskCard({ task, onPress }: { task: TaskListItem; onPress: () => void }) {
@@ -29,12 +32,24 @@ function TaskCard({ task, onPress }: { task: TaskListItem; onPress: () => void }
   );
 }
 
-export default function TasksScreen({ tasks, userName, onOpenTask, onRefresh, loading, error }: TasksScreenProps) {
+export default function TasksScreen({
+  tasks,
+  userName,
+  onOpenTask,
+  onRefresh,
+  loading,
+  error,
+  title = 'Minhas Tarefas',
+  showProgress = true,
+  showPrevious = true,
+}: TasksScreenProps) {
   const now = new Date();
-  const today = tasks.filter((task) => isToday(task.scheduled_start_at, now));
-  const upcoming = tasks.filter((task) => new Date(task.scheduled_start_at).getTime() > now.getTime() && !isToday(task.scheduled_start_at, now));
-  const previous = tasks.filter((task) => new Date(task.scheduled_start_at).getTime() < now.getTime() && !isToday(task.scheduled_start_at, now));
+  const orderedTasks = [...tasks].sort((left, right) => Date.parse(left.scheduled_start_at) - Date.parse(right.scheduled_start_at));
+  const today = orderedTasks.filter((task) => isToday(task.scheduled_start_at, now));
+  const upcoming = orderedTasks.filter((task) => new Date(task.scheduled_start_at).getTime() > now.getTime() && !isToday(task.scheduled_start_at, now));
+  const previous = orderedTasks.filter((task) => new Date(task.scheduled_start_at).getTime() < now.getTime() && !isToday(task.scheduled_start_at, now));
   const completedToday = today.filter((task) => task.status === 'completed').length;
+  const visibleTasks = showPrevious ? tasks : [...today, ...upcoming];
 
   return (
     <ScrollView contentContainerStyle={styles.page} contentInsetAdjustmentBehavior="automatic">
@@ -48,28 +63,30 @@ export default function TasksScreen({ tasks, userName, onOpenTask, onRefresh, lo
         </Pressable>
       </View>
       <Text style={styles.date}>{new Intl.DateTimeFormat('pt-PT', { dateStyle: 'full' }).format(now).toUpperCase()}</Text>
-      <Text style={styles.title}>Minhas Tarefas</Text>
-      <View style={styles.progressCard}>
-        <Text style={styles.progressLabel}>Progresso de hoje</Text>
-        <Text style={styles.progressValue}>{completedToday}/{today.length}</Text>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: today.length ? `${(completedToday / today.length) * 100}%` : '0%' }]} />
+      <Text style={styles.title}>{title}</Text>
+      {showProgress && (
+        <View style={styles.progressCard}>
+          <Text style={styles.progressLabel}>Progresso de hoje</Text>
+          <Text style={styles.progressValue}>{completedToday}/{today.length}</Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: today.length ? `${(completedToday / today.length) * 100}%` : '0%' }]} />
+          </View>
         </View>
-      </View>
+      )}
       {loading ? (
         <View style={styles.messageCard}><ActivityIndicator color="#1769E8" /><Text style={styles.emptyText}>A carregar tarefas...</Text></View>
       ) : error ? (
         <View style={styles.messageCard}><Text style={styles.error}>{error}</Text><Pressable accessibilityRole="button" onPress={onRefresh}><Text style={styles.open}>Tentar novamente</Text></Pressable></View>
-      ) : tasks.length === 0 ? (
-        <View style={styles.messageCard}><Text style={styles.emptyTitle}>Sem tarefas</Text><Text style={styles.emptyText}>Não existem tarefas atribuídas neste momento.</Text></View>
+      ) : visibleTasks.length === 0 ? (
+        <View style={styles.messageCard}><Text style={styles.emptyTitle}>Sem tarefas</Text><Text style={styles.emptyText}>{showPrevious ? 'Não existem tarefas atribuídas neste momento.' : 'Não existem tarefas para hoje nem para os próximos dias.'}</Text></View>
       ) : (
         <>
           <Text style={styles.sectionTitle}>Hoje</Text>
           {today.length ? today.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />) : <Text style={styles.emptyText}>Sem tarefas para hoje.</Text>}
           <Text style={styles.sectionTitle}>Próximas</Text>
           {upcoming.length ? upcoming.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />) : <Text style={styles.emptyText}>Sem tarefas futuras.</Text>}
-          {previous.length > 0 && <Text style={styles.sectionTitle}>Anteriores</Text>}
-          {previous.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />)}
+          {showPrevious && previous.length > 0 && <Text style={styles.sectionTitle}>Anteriores</Text>}
+          {showPrevious && previous.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />)}
         </>
       )}
     </ScrollView>
