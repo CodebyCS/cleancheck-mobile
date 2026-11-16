@@ -2,7 +2,7 @@
 
 Define os ecrãs, as ações, os dados, as validações e os erros dos fluxos que vêm depois do Perfil e das Minhas Tarefas. A implementação fica para os próximos sprints; este documento serve de referência para o mobile e para os contratos da API.
 
-**Estado:** proposta para rever com o Pedro e a equipa. O que está marcado **(a confirmar)** ainda não foi decidido.
+**Estado:** a checklist e a vistoria seguem o protótipo do Figma combinado com o Pedro. O que está marcado **(a confirmar)** ainda não foi decidido.
 
 ## Componentes partilhados
 
@@ -25,18 +25,19 @@ Regras do Perfil, já em uso:
 5. Concluir
 6. Supervisão
 
-Estados da tarefa na API: `pending`, depois `in_progress`, depois `completed` (ou `cancelled`). Hoje a API não tem endpoint para mudar o estado; iniciar e concluir **(a criar na API)**.
+Estados da tarefa na API: `pending`, depois `in_progress`, depois `completed` (ou `cancelled`). O prestador inicia e conclui com `POST /api/my/tasks/{task}/start` e `POST /api/my/tasks/{task}/complete`, e guarda notas com `PATCH /api/my/tasks/{task}/notes`.
 
 ## 1. Checklist da limpeza
 
-**Ecrã:** dentro do detalhe da tarefa, depois de **Iniciar**.
+**Ecrã:** passo do detalhe da tarefa, depois de **Iniciar** (no Figma, separador "Checklist" do detalhe da tarefa).
 
 | | |
 |---|---|
-| **Ações** | Marcar/desmarcar cada item; acrescentar nota a um item; concluir quando os itens obrigatórios estiverem feitos |
-| **Dados** | Lista de itens por tipo de tarefa (`checkout_cleaning`, `checkin_inspection`): `id`, `label`, `required`, `done`, `note` **(endpoint a criar)** |
-| **Validações** | Só a tarefa `in_progress` e atribuída ao prestador pode ser alterada; todos os itens `required` marcados antes de concluir; nota até 500 caracteres **(a confirmar)** |
-| **Erros** | `403`/`404` tarefa já não atribuída: mensagem e voltar à lista; `422` itens obrigatórios em falta: assinalar os itens; sem rede: manter as marcações no dispositivo e reenviar |
+| **Ações** | Marcar/desmarcar cada item; ver o contador (ex.: 3/10); escrever observações adicionais (anomalias, danos, itens em falta) |
+| **Itens (Figma)** | Cama(s) refeita(s) com roupa limpa; Casa de banho limpa e desinfetada; Cozinha limpa, louça guardada; Chão aspirado e lavado; Janelas e superfícies limpas; Eletrodomésticos limpos; Lixo retirado e sacos novos colocados; Amenities reabastecidos (sabão, champô, papel); Toalhas trocadas e dobradas; Cofre/chave verificado e funcional |
+| **Dados** | Por item: `label`, `done`. Na tarefa: observações da checklist **(endpoint a criar)** |
+| **Validações** | Só a tarefa `in_progress` e atribuída ao prestador pode ser alterada; todos os itens marcados antes de concluir; observações até 2000 caracteres **(a confirmar)** |
+| **Erros** | `403`/`404` tarefa já não atribuída: mensagem e voltar à lista; `422` itens em falta: assinalar os itens; sem rede: manter as marcações no dispositivo e reenviar |
 
 ## 2. Evidências (vídeo e fotografias)
 
@@ -49,16 +50,19 @@ Estados da tarefa na API: `pending`, depois `in_progress`, depois `completed` (o
 | **Validações** | Vídeo final só depois do inicial; tipos e tamanho máximo **(a confirmar: duração e MB)**; câmara e microfone com permissão; envio só com a tarefa `in_progress` |
 | **Erros** | Permissão negada: explicar como ativar nas definições; ficheiro grande ou formato inválido (`422`): mensagem no passo; falha de envio: manter o ficheiro e mostrar **Tentar novamente**; `401`: sessão terminada |
 
-## 3. Vistoria (check-in)
+## 3. Vistoria de saída
 
-**Tarefa:** `checkin_inspection`. O prazo (`scheduled_end_at`) é 14:30 do dia do check-in, ou a hora de entrada do imóvel menos 30 min.
+**Ecrã:** passo do detalhe da tarefa (no Figma, separador "Vistoria de Saída").
 
 | | |
 |---|---|
-| **Ações** | Ver imóvel, morada e prazo; percorrer a checklist da vistoria; registar fotografias; dar a vistoria como **OK** ou **Com problemas** |
-| **Dados** | Tarefa (`GET /api/tasks/{id}`), checklist da vistoria, evidências, resultado (`ok`/`issues`) e nota **(a criar)** |
-| **Validações** | Não permitir iniciar depois do prazo **(a confirmar)**; resultado obrigatório; com **Com problemas**, nota ou fotografia obrigatória |
-| **Erros** | Prazo ultrapassado: aviso e contacto com o supervisor; os mesmos erros de rede e sessão das evidências |
+| **Ações** | Avaliar o hóspede anterior (1 a 5 estrelas); escolher o estado geral do imóvel; escrever observações; adicionar fotografias; **Registar Vistoria** |
+| **Estado do imóvel (Figma)** | Muito bom; Bom; Regular; Com danos; Mau estado; Irreparável |
+| **Dados** | `guest_rating` (1 a 5), `property_condition`, `notes`, fotografias **(endpoint a criar)** |
+| **Validações** | Avaliação e estado obrigatórios; com "Com danos", "Mau estado" ou "Irreparável", observações ou fotografia obrigatórias |
+| **Erros** | `422` campos em falta: assinalar os campos; os mesmos erros de rede, sessão e câmara das evidências |
+
+A tarefa `checkin_inspection` da API usa o mesmo ecrã. O prazo (`scheduled_end_at`) é 14:30 do dia do check-in, ou a hora de entrada do imóvel menos 30 min; iniciar depois do prazo **(a confirmar)**.
 
 ## 4. Supervisão
 
