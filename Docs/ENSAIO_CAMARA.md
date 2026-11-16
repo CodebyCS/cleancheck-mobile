@@ -6,12 +6,14 @@ Registo do ensaio da Sprint 4: tirar fotografia, gravar vídeo e enviar um fiche
 
 ## Como fazer o ensaio
 
-1. API a correr com o endpoint de ensaio (contrato em `cleancheck-api/Docs/contracts/evidence-trial.md`).
+1. API de teste a correr com o endpoint de ensaio (contrato em `cleancheck-api/Docs/contracts/evidence-trial.md`).
 2. No `php.ini` da API: `upload_max_filesize = 50M` e `post_max_size = 55M`.
-3. `EXPO_PUBLIC_API_URL` no `.env` do mobile a apontar para a API (IP do computador na rede ou túnel).
+3. Para o ensaio S4, instalar a build Android EAS `preview` preparada em [BUILD_DESENVOLVIMENTO.md](BUILD_DESENVOLVIMENTO.md). Configurar `EXPO_PUBLIC_API_URL` e `EXPO_PUBLIC_API_HEALTH_URL` no ambiente EAS `preview`, apontando para a API acessível pelo aparelho. `localhost` e o `.env.local` do computador não ficam incluídos na build. Expo Go ou uma sessão Metro não contam como instalação autónoma.
 4. Entrar com uma conta de prestador (dados fictícios do seeder).
 5. **Perfil → Ensaio de câmara.**
 6. Para cada caso da tabela abaixo: escolher a origem, preencher "Aparelho e rede", enviar e copiar para o registo o que o ecrã mostra.
+
+Para testar também login, tarefas, agenda, avisos, permissões recusadas e registar a reprodução por outro colega, seguir [ENSAIO_ANDROID_S4.md](ENSAIO_ANDROID_S4.md).
 
 ## O que a app e a API aceitam
 
@@ -24,7 +26,7 @@ Registo do ensaio da Sprint 4: tirar fotografia, gravar vídeo e enviar um fiche
 
 ## Aparelhos usados
 
-| # | Aparelho | Sistema | Versão Expo Go | Quem testou |
+| # | Aparelho | Sistema/versão | Build (versão/commit) | Quem testou |
 |---|---|---|---|---|
 | A1 | | | | |
 | A2 | | | | |

@@ -1,12 +1,12 @@
 # Minhas Tarefas e Agenda — integração com a API
 
-A lista consulta `GET /api/tasks` e o detalhe consulta `GET /api/tasks/{task}` através de `authenticatedFetch`. O Bearer token vem da sessão; a API identifica o prestador e limita o acesso às tarefas atualmente atribuídas. Não há seletor de prestador nem dados fictícios neste percurso.
+A lista consulta `GET /api/my/tasks` e o detalhe consulta `GET /api/my/tasks/{id}` através de `authenticatedFetch`. As respostas são paginadas e a app segue as páginas; o Bearer token vem da sessão e a API limita o acesso às tarefas atualmente atribuídas ao prestador. Não há seletor de prestador nem dados fictícios neste percurso.
 
 ## Dados apresentados
 
 - A lista recebe `id`, `property`, `type`, `scheduled_start_at` e `status`. Os cartões não mostram morada nem duração, porque esses dados não fazem parte da resposta da lista.
 - Os separadores **Tarefas** e **Agenda** usam a mesma lista autenticada. **Tarefas** mostra **Hoje**, **Próximas** e, quando existem, **Anteriores**, além do progresso do dia. **Agenda** mostra apenas **Hoje** e **Próximas**. A classificação usa a data local do dispositivo e os horários de `scheduled_start_at`; cada secção é ordenada cronologicamente.
-- O detalhe consulta a tarefa pelo ID e acrescenta `address`, `scheduled_end_at`, `started_at` e `completed_at` quando disponíveis.
+- O detalhe consulta a tarefa pelo ID; a API devolve `property_address`, que a app apresenta como morada, além de `scheduled_end_at`, `started_at`, `completed_at` e `provider_notes` quando disponíveis.
 - Ao tocar num cartão em qualquer separador, a app consulta o detalhe pelo ID. A lista é consultada novamente ao voltar do detalhe, ao regressar a **Tarefas** ou **Agenda**, e ao tocar em **Atualizar**.
 
 ## Estados e erros
@@ -38,3 +38,7 @@ Os botões de vídeo e conclusão no detalhe continuam identificados como simula
 - O typecheck foi executado após a integração de avisos. O fluxo ainda precisa de validação manual num dispositivo real com avisos reais da API.
 - Na validação anterior da agenda e autenticação, foram usados dados simulados para lista preenchida/vazia, detalhe, erros `401`/`404`, falha de rede, login, recuperação da identidade `service_provider` e ciclo de sessão no SecureStore. Estes resultados não substituem testes do novo fluxo de avisos.
 - O percurso visual num dispositivo real e a reatribuição de A para B com a API real ainda precisam de ser executados.
+
+## Ensaio integrado da Sprint 4
+
+Os passos para demonstrar login, tarefas, agenda, avisos e o ensaio de câmara/envio numa build Android estão em [ENSAIO_ANDROID_S4.md](ENSAIO_ANDROID_S4.md). Esse ensaio usa a API real e dados fictícios de teste; não trata respostas simuladas como integração concluída.

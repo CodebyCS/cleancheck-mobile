@@ -33,7 +33,7 @@ O pedido é sempre tentado com o token atual. A limpeza local é executada no bl
 - Ao iniciar a aplicação, `AuthContext` restaura a sessão guardada. Sessões expiradas ou dados inválidos são removidos; durante o restauro é apresentado um indicador de carregamento.
 - `authenticatedFetch` adiciona `Accept: application/json` e `Authorization: Bearer <token>` aos pedidos autenticados.
 - Antes de um pedido autenticado, uma sessão expirada é removida e o utilizador regressa ao login. Se a API responder HTTP `401`, `authenticatedFetch` limpa a sessão guardada e lança `AuthError` com o código `SESSION_EXPIRED`; os serviços recebem esse erro sem precisar de interpretar a resposta `401` novamente.
-- Após autenticação, a navegação provisória disponibiliza os separadores **Tarefas**, **Agenda**, **Avisos** e **Perfil**.
+- Após autenticação, a navegação disponibiliza **Tarefas**, **Agenda**, **Avisos** e **Perfil**. Tarefas e Agenda consultam as rotas autenticadas de prestador; Avisos consulta `GET /api/booking-notices`; Perfil consulta `GET /api/profile`. O ensaio de câmara em Perfil envia ficheiros de teste para `POST /api/evidence-trials`.
 - A ação de logout está disponível no separador **Perfil**. O pedido de revogação é enviado antes da limpeza local; a limpeza e o regresso ao ecrã de login ocorrem sempre, mesmo que esse pedido falhe.
 - O endereço base é configurado por `EXPO_PUBLIC_API_URL` no `.env.local` da pasta `mobile`; reinicia o Expo depois de o alterar.
 
@@ -43,7 +43,7 @@ A sessão é persistida localmente com Expo SecureStore, mas a renovação do to
 
 A API atual devolve o campo `role`, mas o endpoint de login não restringe o acesso ao perfil de prestador (`service_provider`). Confirmar com a equipa se a API deverá impor essa regra; uma validação apenas no cliente não constitui controlo de acesso seguro.
 
-Os separadores **Agenda**, **Avisos** e **Perfil** fazem parte da navegação provisória. A presença dos separadores não confirma integração dessas áreas com a API.
+O ensaio de câmara é experimental: os ficheiros enviados para `/api/evidence-trials` não ficam associados a tarefas e não são provas de limpeza. A validação integrada de login, tarefas, agenda, avisos e permissões numa build Android está descrita em [ENSAIO_ANDROID_S4.md](ENSAIO_ANDROID_S4.md); os resultados no aparelho devem ser registados antes de considerar esse percurso validado.
 
 ## Validação
 
