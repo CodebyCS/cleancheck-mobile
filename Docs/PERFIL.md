@@ -28,6 +28,7 @@ A resposta de sucesso (`200`) devolve em `data`:
 - Uma resposta `404` indica que a conta não tem registo de prestador.
 - Puxar o ecrã para baixo volta a carregar o perfil. O link da fotografia expira ao fim de 10 minutos, por isso a atualização gera um link novo.
 - O logout mantém o comportamento descrito em [LOGIN.md](./LOGIN.md).
+- O botão **Ensaio de câmara** abre o ensaio de fotografia e vídeo descrito em [ENSAIO_CAMARA.md](./ENSAIO_CAMARA.md), dentro do separador Perfil.
 
 ## Perfis aceites
 
@@ -53,7 +54,42 @@ Passos:
 
 Esta lista descreve o procedimento de teste. Não constitui uma declaração de que os testes passaram.
 
+## Revisão de usabilidade (Sprint 4)
+
+Revisão do Perfil em diferentes dimensões, com teclado e com textos extensos, usando dados fictícios.
+
+### Como foi feito
+
+- Ecrãs `ProfileScreen` e `CameraTrialScreen` executados no browser (React Native Web), com a API e a câmara simuladas.
+- Larguras de 320 px (telemóveis pequenos) e 375 px (iPhone SE).
+- Conta fictícia com textos longos: nome com 65 caracteres, e-mail com 80, telefone com dois números e morada com mais de 90 caracteres.
+
+### Resultados
+
+| # | Cenário | Largura | Resultado |
+|---|---|---|---|
+| 1 | Perfil com nome, e-mail, telefone e morada longos | 320 px | Os textos partem dentro do cartão; sem deslocamento horizontal |
+| 2 | Perfil com dados curtos | 375 px | Sem alterações |
+| 3 | Sem fotografia | 320 e 375 px | Iniciais no lugar da fotografia |
+| 4 | Sem morada | 375 px | "Não indicada" a cinzento |
+| 5 | Erro de rede ao carregar | 375 px | Mensagem e botão **Tentar novamente** |
+| 6 | Abrir o ensaio de câmara a partir do Perfil e voltar | 375 px | Abre no mesmo separador; **Voltar ao perfil** regressa |
+| 7 | Ensaio de câmara num ecrã pequeno | 320 px | Botões e cartões cabem no ecrã; sem deslocamento horizontal |
+| 8 | Campo "Aparelho e rede" do ensaio | 375 px | Recebe foco e texto; limite de 120 caracteres |
+
+Não foram encontrados defeitos que impeçam o percurso.
+
+### Confirmação em aparelho real
+
+O teclado do sistema, o tamanho de letra do sistema e o leitor de ecrã só se confirmam num telemóvel.
+
+| Aparelho | Sistema | Perfil com textos longos | Tamanho de letra aumentado | Teclado no ensaio | Quem confirmou |
+|---|---|---|---|---|---|
+| | | | | | |
+| | | | | | |
+
 ## Limitações
 
 - A fotografia só pode ser alterada por administradores e supervisores; o perfil mobile é apenas de consulta.
 - O projeto mobile não tem testes automáticos; a verificação é manual e com `npm exec tsc -- --noEmit`.
+- A revisão de usabilidade no browser não substitui a confirmação em aparelho real (tabela acima).
