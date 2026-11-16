@@ -29,7 +29,9 @@ O separador **Avisos** consulta `GET /api/booking-notices` com `authenticatedFet
 
 ## Comunicar um impedimento
 
-O prestador autenticado regista um impedimento na tarefa atualmente atribuída através de `POST /api/tasks/{id}/impediments`. O pedido envia `reason` (texto livre obrigatório, até 120 caracteres), `description` (opcional ou `null`, até 2000 caracteres) e `idempotency_key` (UUID). A app guarda o payload pendente e a chave no SecureStore para poder repetir exatamente o mesmo pedido depois de uma falha ambígua de rede ou timeout. O rascunho pendente é removido após sucesso e também ao terminar sessão ou ao expirar a sessão.
+O prestador autenticado regista um impedimento na tarefa atualmente atribuída através de `POST /api/tasks/{id}/impediments`. O pedido envia `reason` (texto livre obrigatório, até 120 caracteres), `description` (opcional ou `null`, até 2000 caracteres) e `idempotency_key` (UUID). Antes do pedido, a app guarda o payload pendente e a chave no SecureStore. Se a resposta se perder ou ocorrer uma falha de rede/timeout, o mesmo payload e a mesma chave são usados no retry. Enquanto existir um envio por confirmar para esse utilizador, a app bloqueia o início de outro impedimento, mesmo noutra tarefa. O rascunho pendente é removido após sucesso confirmado e também ao terminar sessão ou ao expirar a sessão.
+
+Após uma falha ambígua, a interface apresenta uma única mensagem: o envio não pôde ser confirmado, os mesmos dados e a mesma chave foram preservados, e **Tentar novamente** repetirá a operação sem criar duplicados. Se a API confirmar o registo mas a app não conseguir limpar o rascunho local, a interface informa ambas as condições e permite verificar novamente o envio guardado.
 
 Uma criação nova devolve `201 Created`. Repetir o mesmo payload com a mesma chave devolve `200 OK` com o impedimento existente. Reutilizar a chave com conteúdo diferente devolve `409 Conflict`. Os restantes erros são tratados assim:
 

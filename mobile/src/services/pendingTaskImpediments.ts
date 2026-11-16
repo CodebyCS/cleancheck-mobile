@@ -137,18 +137,24 @@ export async function getPendingTaskImpediment(
   taskId: number,
   userId: number | string,
 ): Promise<PendingTaskImpediment | null> {
+  const pending = await listPendingTaskImpedimentsForUser(userId);
+  return pending.find((draft) => draft.taskId === taskId) ?? null;
+}
+
+export async function listPendingTaskImpedimentsForUser(
+  userId: number | string,
+): Promise<PendingTaskImpediment[]> {
   const entries = await readIndex();
-  const entry = entries.find((item) => matches(item, taskId, userId));
-  return entry ? readDraft(entry) : null;
+  const userEntries = entries.filter((entry) => String(entry.userId) === String(userId));
+  return Promise.all(userEntries.map(readDraft));
 }
 
 export async function savePendingTaskImpediment(draft: PendingTaskImpediment): Promise<void> {
   const entries = await readIndex();
-  const previous = entries.filter((item) => matches(item, draft.taskId, draft.userId));
+  const previous = entries.filter((item) => String(item.userId) === String(draft.userId));
   if (previous.length > 0) {
-    throw new Error('A pending impediment already exists for this task and user.');
+    throw new Error(`A pending impediment already exists for task ${previous[0].taskId} and this user.`);
   }
-  const remaining = entries.filter((item) => !matches(item, draft.taskId, draft.userId));
 
   const description = draft.submission.description ?? '';
   const chunks = splitDescription(description);
@@ -173,7 +179,7 @@ export async function savePendingTaskImpediment(draft: PendingTaskImpediment): P
       await SecureStore.setItemAsync(`${storageKey}.description.${index}`, chunks[index]);
     }
     await SecureStore.setItemAsync(`${storageKey}.meta`, JSON.stringify(storedDraft));
-    await SecureStore.setItemAsync(PENDING_KEY, JSON.stringify([...remaining, entry]));
+    await SecureStore.setItemAsync(PENDING_KEY, JSON.stringify([...entries, entry]));
   } catch (error) {
     await removeEntry(entry).catch(() => undefined);
     throw error;

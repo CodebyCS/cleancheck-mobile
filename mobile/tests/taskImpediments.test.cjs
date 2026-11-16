@@ -27,6 +27,7 @@ function loadTypeScriptModule(relativePath, mocks) {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2020,
       esModuleInterop: true,
+      jsx: ts.JsxEmit.ReactJSX,
     },
   }).outputText;
   const loaded = new Module(filename, module);
@@ -155,6 +156,62 @@ test('401 and an expired authenticated session use the existing session error', 
   });
 });
 
+test('authenticated 401 clears the stored session and pending impediments', async () => {
+  secureItems.clear();
+  await savePendingTaskImpediment({ taskId: 7, userId: 3, submission });
+
+  const session = {
+    token: 'test-token',
+    user: { id: 3, name: 'Prestador Teste', email: 'prestador@example.test', role: 'service_provider' },
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+  let currentSession = session;
+  let removeSessionCalls = 0;
+  let stateIndex = 0;
+  const reactMock = {
+    createContext: () => ({ Provider: 'AuthContext.Provider' }),
+    createElement: (type, props, children) => ({ type, props: { ...props, children } }),
+    useState: (initialValue) => {
+      stateIndex += 1;
+      return stateIndex === 1
+        ? [currentSession, (next) => { currentSession = typeof next === 'function' ? next(currentSession) : next; }]
+        : [initialValue, () => {}];
+    },
+    useEffect: () => {},
+    useCallback: (callback) => callback,
+    useContext: () => null,
+    useMemo: (factory) => factory(),
+  };
+  const { AuthProvider } = loadTypeScriptModule('../src/auth/AuthContext.tsx', {
+    react: reactMock,
+    'react/jsx-runtime': {
+      jsx: (type, props) => ({ type, props }),
+      jsxs: (type, props) => ({ type, props }),
+    },
+    'react-native': { Alert: { alert: () => {} } },
+    '../services/auth': { AuthError, getCurrentUser: async () => session.user, login: async () => ({}), logout: async () => {} },
+    '../services/authTokenStorage': {
+      readAuthSession: async () => session,
+      removeAuthSession: async () => { removeSessionCalls += 1; },
+      saveAuthSession: async () => {},
+    },
+    '../services/pendingTaskImpediments': { clearPendingTaskImpediments },
+  });
+  const provider = AuthProvider({ children: null });
+  const { authenticatedFetch } = provider.props.value;
+  const originalFetch = global.fetch;
+  global.fetch = async () => apiResponse(401, { message: 'Unauthenticated.' });
+  try {
+    await assert.rejects(authenticatedFetch('https://cleancheck.example/api/tasks/7/impediments'));
+  } finally {
+    global.fetch = originalFetch;
+  }
+
+  assert.equal(removeSessionCalls, 1);
+  assert.equal(currentSession, null);
+  assert.equal(await getPendingTaskImpediment(7, 3), null);
+});
+
 test('network retry reuses the identical body and idempotency key', async () => {
   const sentBodies = [];
   let attempts = 0;
@@ -176,7 +233,7 @@ test('network retry reuses the identical body and idempotency key', async () => 
   assert.equal(sentBodies[0].idempotency_key, sentBodies[1].idempotency_key);
 });
 
-test('pending operation is persisted per task and user and can be cleared on logout', async () => {
+test('an unresolved operation blocks another task for the same user but not another user', async () => {
   secureItems.clear();
   const first = { taskId: 7, userId: 3, submission };
   const second = {
@@ -184,15 +241,49 @@ test('pending operation is persisted per task and user and can be cleared on log
     userId: 3,
     submission: { ...submission, idempotency_key: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
   };
+  const otherUser = { ...second, userId: 4 };
 
   await savePendingTaskImpediment(first);
-  await savePendingTaskImpediment(second);
+  await assert.rejects(savePendingTaskImpediment(second), /pending impediment already exists for task 7/i);
   assert.deepEqual(await getPendingTaskImpediment(7, '3'), first);
-  assert.equal(await getPendingTaskImpediment(7, 4), null);
-  await removePendingTaskImpediment(7, 3);
-  assert.deepEqual(await getPendingTaskImpediment(8, 3), second);
-  await clearPendingTaskImpediments();
+  await savePendingTaskImpediment(otherUser);
   assert.equal(await getPendingTaskImpediment(8, 3), null);
+  assert.deepEqual(await getPendingTaskImpediment(8, 4), otherUser);
+  await removePendingTaskImpediment(7, 3);
+  assert.deepEqual(await getPendingTaskImpediment(8, 4), otherUser);
+  await clearPendingTaskImpediments();
+  assert.equal(await getPendingTaskImpediment(8, 4), null);
+});
+
+test('ambiguous network failure preserves the stored payload and success clears it after an identical retry', async () => {
+  secureItems.clear();
+  const draft = { taskId: 7, userId: 3, submission };
+  await savePendingTaskImpediment(draft);
+
+  const sentBodies = [];
+  let attempts = 0;
+  const fetcher = async (_url, init) => {
+    sentBodies.push(JSON.parse(init.body));
+    attempts += 1;
+    if (attempts === 1) throw new TypeError('Network request failed');
+    return apiResponse(200, record);
+  };
+
+  await assert.rejects(
+    registerTaskImpediment(7, (await getPendingTaskImpediment(7, 3)).submission, fetcher),
+    (error) => error instanceof TaskImpedimentError && error.code === 'NETWORK',
+  );
+  assert.deepEqual(await getPendingTaskImpediment(7, 3), draft);
+
+  const retry = await registerTaskImpediment(7, (await getPendingTaskImpediment(7, 3)).submission, fetcher);
+  assert.equal(retry.repeated, true);
+  assert.deepEqual(sentBodies, [submission, submission]);
+  await removePendingTaskImpediment(7, 3);
+  assert.equal(await getPendingTaskImpediment(7, 3), null);
+
+  const newSubmission = { ...submission, idempotency_key: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' };
+  await savePendingTaskImpediment({ taskId: 7, userId: 3, submission: newSubmission });
+  assert.deepEqual((await getPendingTaskImpediment(7, 3)).submission, newSubmission);
 });
 
 test('a maximum-length multibyte description is stored in bounded secure chunks', async () => {
@@ -237,8 +328,12 @@ test('timeout remains retryable instead of being treated as a definitive rejecti
     },
   );
 
+  secureItems.clear();
+  const draft = { taskId: 7, userId: 3, submission };
+  await savePendingTaskImpediment(draft);
   await assert.rejects(
-    registerWithTimeout(7, submission, async () => apiResponse(201, record)),
+    registerWithTimeout(7, (await getPendingTaskImpediment(7, 3)).submission, async () => apiResponse(201, record)),
     (error) => error.name === 'TaskImpedimentError' && error.code === 'NETWORK' && error.message.includes('tenta novamente'),
   );
+  assert.deepEqual(await getPendingTaskImpediment(7, 3), draft);
 });

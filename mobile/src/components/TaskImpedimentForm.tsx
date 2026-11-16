@@ -9,7 +9,7 @@ import {
   TaskImpedimentSubmission,
 } from '../services/taskImpediments';
 import {
-  getPendingTaskImpediment,
+  listPendingTaskImpedimentsForUser,
   PendingTaskImpediment,
   removePendingTaskImpediment,
   savePendingTaskImpediment,
@@ -24,6 +24,7 @@ export default function TaskImpedimentForm({ taskId }: TaskImpedimentFormProps) 
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingTaskImpediment | null>(null);
+  const [pendingElsewhere, setPendingElsewhere] = useState<PendingTaskImpediment | null>(null);
   const [reason, setReason] = useState('');
   const [description, setDescription] = useState('');
   const [fieldErrors, setFieldErrors] = useState<TaskImpedimentFieldErrors>({});
@@ -39,20 +40,30 @@ export default function TaskImpedimentForm({ taskId }: TaskImpedimentFormProps) 
     setStorageError(null);
 
     if (userId === undefined) {
+      setPending(null);
+      setPendingElsewhere(null);
       setStorageReady(true);
       return () => { active = false; };
     }
 
-    void getPendingTaskImpediment(taskId, userId).then((draft) => {
+    void listPendingTaskImpedimentsForUser(userId).then((drafts) => {
       if (!active) return;
+      const draft = drafts.find((item) => item.taskId === taskId) ?? null;
+      const otherDraft = draft ? null : drafts.find((item) => item.taskId !== taskId) ?? null;
       setPending(draft);
+      setPendingElsewhere(otherDraft);
       if (draft) {
         setReason(draft.submission.reason);
         setDescription(draft.submission.description ?? '');
+      } else if (otherDraft) {
+        setReason('');
+        setDescription('');
       } else {
         setReason('');
         setDescription('');
       }
+      setError(null);
+      setSuccess(null);
       setStorageReady(true);
     }).catch(() => {
       if (!active) return;
@@ -69,12 +80,20 @@ export default function TaskImpedimentForm({ taskId }: TaskImpedimentFormProps) 
     setStorageReady(false);
     setStorageError(null);
     try {
-      const draft = await getPendingTaskImpediment(taskId, userId);
+      const drafts = await listPendingTaskImpedimentsForUser(userId);
+      const draft = drafts.find((item) => item.taskId === taskId) ?? null;
+      const otherDraft = draft ? null : drafts.find((item) => item.taskId !== taskId) ?? null;
       setPending(draft);
+      setPendingElsewhere(otherDraft);
       if (draft) {
         setReason(draft.submission.reason);
         setDescription(draft.submission.description ?? '');
+      } else if (otherDraft) {
+        setReason('');
+        setDescription('');
       }
+      setError(null);
+      setSuccess(null);
       setStorageReady(true);
     } catch {
       setStorageError('Não foi possível verificar envios pendentes. Tenta novamente antes de criar outro impedimento.');
@@ -85,7 +104,9 @@ export default function TaskImpedimentForm({ taskId }: TaskImpedimentFormProps) 
     if (userId === undefined) return false;
     try {
       await removePendingTaskImpediment(taskId, userId);
+      const remaining = await listPendingTaskImpedimentsForUser(userId);
       setPending(null);
+      setPendingElsewhere(remaining[0] ?? null);
       setConflictNeedsReset(false);
       return true;
     } catch {
@@ -95,7 +116,7 @@ export default function TaskImpedimentForm({ taskId }: TaskImpedimentFormProps) 
   }
 
   async function submit() {
-    if (!storageReady || storageError || sending || submittingRef.current || userId === undefined) return;
+    if (!storageReady || storageError || pendingElsewhere || sending || submittingRef.current || userId === undefined) return;
 
     const normalizedReason = reason.trim();
     const normalizedDescription = description.trim();
@@ -135,23 +156,35 @@ export default function TaskImpedimentForm({ taskId }: TaskImpedimentFormProps) 
       }
 
       const result = await registerTaskImpediment(taskId, operation.submission, authenticatedFetch);
-      setSuccess(result.repeated ? 'Este impedimento já estava registado.' : 'Impedimento registado com sucesso.');
       setFieldErrors({});
       if (await clearPending()) {
+        setError(null);
+        setSuccess(result.repeated ? 'Este impedimento já estava registado.' : 'Impedimento registado com sucesso.');
         setReason('');
         setDescription('');
+      } else {
+        setSuccess(null);
+        setError('A API confirmou o registo, mas a app não conseguiu limpar o envio guardado. A mesma chave foi preservada; verifica novamente o envio e repete-o para limpar com segurança.');
       }
     } catch (caught) {
       const taskError = caught instanceof TaskImpedimentError
         ? caught
         : new TaskImpedimentError('NETWORK', 'Não foi possível confirmar o envio. Tenta novamente.');
-      setError(taskError.message);
+      const retryable = taskError.code === 'NETWORK'
+        || taskError.code === 'SERVER'
+        || taskError.code === 'INVALID_RESPONSE';
+      setSuccess(null);
+      setError(retryable && operation
+        ? 'Não foi possível confirmar o envio. Os mesmos dados e a mesma chave ficaram guardados; toca em “Tentar novamente” para repetir sem criar duplicados.'
+        : taskError.message);
       setFieldErrors(taskError.fieldErrors);
 
       // These responses definitively reject the request, so an edited form
       // can start a new operation with a fresh idempotency key.
       if (taskError.code === 'VALIDATION' || taskError.code === 'FORBIDDEN' || taskError.code === 'NOT_FOUND') {
-        if (await clearPending()) setSuccess(null);
+        if (!(await clearPending())) {
+          setError(`${taskError.message} Não foi possível limpar o envio guardado; verifica o armazenamento antes de continuar.`);
+        }
       }
       if (taskError.code === 'CONFLICT') setConflictNeedsReset(true);
     } finally {
@@ -175,21 +208,26 @@ export default function TaskImpedimentForm({ taskId }: TaskImpedimentFormProps) 
     );
   }
 
-  const inputsLocked = !!pending || sending || !storageReady || !!storageError;
+  const inputsLocked = !!pending || !!pendingElsewhere || sending || !storageReady || !!storageError;
 
   return (
     <View style={styles.card}>
       <Text style={styles.sectionLabel}>COMUNICAR IMPEDIMENTO</Text>
       <Text style={styles.help}>Regista um problema que esteja a impedir a realização desta tarefa.</Text>
 
-      {storageReady && pending && (
+      {storageReady && pendingElsewhere && (
+        <Text accessibilityRole="alert" style={styles.pendingNotice}>
+          Existe um envio por confirmar na tarefa {pendingElsewhere.taskId}. Volta a essa tarefa e toca em “Tentar novamente” antes de registar outro impedimento.
+        </Text>
+      )}
+      {storageReady && pending && !error && (
         <Text style={styles.pendingNotice}>
           Existe um envio por confirmar. Mantivemos os mesmos dados e a mesma chave para o retry não criar duplicados.
         </Text>
       )}
-      {storageError && <Text accessibilityRole="alert" style={styles.error}>{storageError}</Text>}
+      {storageError && !error && <Text accessibilityRole="alert" style={styles.error}>{storageError}</Text>}
       {!storageReady && !storageError && <ActivityIndicator accessibilityLabel="A verificar envio pendente" color="#1769E8" />}
-      {storageError && <Pressable accessibilityRole="button" onPress={() => void reloadPending()} style={styles.textButton}><Text style={styles.textButtonLabel}>Tentar novamente</Text></Pressable>}
+      {storageError && <Pressable accessibilityRole="button" onPress={() => void reloadPending()} style={styles.textButton}><Text style={styles.textButtonLabel}>Verificar envio guardado</Text></Pressable>}
 
       {storageReady && !storageError && <>
         <Text style={styles.label}>Motivo *</Text>
@@ -227,12 +265,12 @@ export default function TaskImpedimentForm({ taskId }: TaskImpedimentFormProps) 
 
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ disabled: sending || !storageReady || !!storageError }}
-          disabled={sending || !storageReady || !!storageError}
+          accessibilityState={{ disabled: sending || !storageReady || !!storageError || !!pendingElsewhere }}
+          disabled={sending || !storageReady || !!storageError || !!pendingElsewhere}
           onPress={() => void submit()}
           style={({ pressed }) => [styles.submitButton, sending && styles.submitDisabled, pressed && !sending && styles.pressed]}
         >
-          {sending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitLabel}>{pending ? 'Tentar novamente' : 'Registar impedimento'}</Text>}
+          {sending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitLabel}>{pendingElsewhere ? 'Resolver envio pendente' : pending ? 'Tentar novamente' : 'Registar impedimento'}</Text>}
         </Pressable>
         {conflictNeedsReset && <Pressable accessibilityRole="button" onPress={startNewAfterConflict} style={styles.textButton}><Text style={styles.textButtonLabel}>Iniciar novo envio</Text></Pressable>}
       </>}
