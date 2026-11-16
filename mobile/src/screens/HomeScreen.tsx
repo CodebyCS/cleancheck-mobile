@@ -7,6 +7,7 @@ import TaskDetailScreen from './TaskDetailScreen';
 import TasksScreen from './TasksScreen';
 import ProfileScreen from './ProfileScreen';
 import NoticesScreen from './NoticesScreen';
+import { useAppForeground } from '../hooks/useAppForeground';
 
 export default function HomeScreen() {
   const { authenticatedFetch, session } = useAuth();
@@ -42,6 +43,12 @@ export default function HomeScreen() {
     void refreshTasks();
     return () => { listRequest.current++; detailRequest.current++; };
   }, [refreshTasks]);
+
+  // Back from the background: tasks may have been reassigned or rescheduled meanwhile.
+  // An open task checks itself (TaskDetailScreen).
+  useAppForeground(() => {
+    if (selectedTaskId === null) void refreshTasks();
+  });
 
   async function openTask(taskId: number) {
     const request = ++detailRequest.current;
