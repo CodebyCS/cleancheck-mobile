@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AuthenticatedFetch } from '../services/tasks';
 import { BookingNotice, formatDay, listBookingNotices, markNoticeAsRead } from '../services/notices';
+import { useAppForeground } from '../hooks/useAppForeground';
 
 type NoticesScreenProps = {
   authenticatedFetch: AuthenticatedFetch;
@@ -106,6 +107,11 @@ export default function NoticesScreen({ authenticatedFetch, onOpenTask }: Notice
     void refresh();
     return () => { request.current++; };
   }, [refresh]);
+
+  // Back from the background: notices may have arrived while the app was away.
+  useAppForeground(() => {
+    void refresh();
+  });
 
   function pullToRefresh() {
     setRefreshing(true);

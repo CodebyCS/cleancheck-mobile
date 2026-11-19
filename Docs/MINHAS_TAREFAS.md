@@ -38,3 +38,23 @@ Os botões de vídeo e conclusão no detalhe continuam identificados como simula
 - O typecheck foi executado após a integração de avisos. O fluxo ainda precisa de validação manual num dispositivo real com avisos reais da API.
 - Na validação anterior da agenda e autenticação, foram usados dados simulados para lista preenchida/vazia, detalhe, erros `401`/`404`, falha de rede, login, recuperação da identidade `service_provider` e ciclo de sessão no SecureStore. Estes resultados não substituem testes do novo fluxo de avisos.
 - O percurso visual num dispositivo real e a reatribuição de A para B com a API real ainda precisam de ser executados.
+
+## Reconexão e acesso atual
+
+- Quando a app volta ao primeiro plano (telemóvel desbloqueado, regresso de outra app), a lista de tarefas e a de avisos voltam a ser pedidas à API, sem indicador de carregamento. Se a rede ainda não voltou, a lista anterior mantém-se com a mensagem de erro.
+- Uma tarefa aberta também é consultada outra vez nesse momento.
+- Se a API responder `404` a uma tarefa aberta (ao voltar à app, ao iniciar, ao guardar notas ou ao concluir), o detalhe é substituído por "Esta tarefa já não está atribuída à tua conta…" e só permite voltar à lista. Os dados da tarefa deixam de ser mostrados.
+- Sessão expirada (`401`) em qualquer destes pedidos: o `AuthContext` limpa a sessão e a app regressa ao login.
+- A reconexão usa o `AppState` do React Native (sem dependências novas). Mudanças de rede com a app aberta não são detetadas; nesse caso usar **Atualizar** ou puxar o ecrã.
+
+### Registo do ensaio no dispositivo
+
+| # | Caso | Como provocar | Esperado | Aparelho | Resultado |
+|---|---|---|---|---|---|
+| 1 | Aviso novo com a app em segundo plano | App em **Avisos** → bloquear o telemóvel → no web, ajustar a data de uma reserva desta pessoa → desbloquear | O aviso aparece sem puxar o ecrã | | |
+| 2 | Reatribuição com o detalhe aberto | Abrir uma tarefa → bloquear → no web, reatribuir a outro prestador → desbloquear | Mensagem "já não está atribuída" sem dados da tarefa | | |
+| 3 | Reatribuição sem sair da app | Abrir uma tarefa pendente → no web, reatribuir → **Iniciar tarefa** | A mesma mensagem; a tarefa não é iniciada | | |
+| 4 | Falha seguida de recuperação | Modo de avião → **Atualizar** em Avisos → desligar o modo de avião → mudar de app e voltar | Erro com a lista anterior; depois atualiza sozinho e o erro desaparece | | |
+| 5 | Sessão expirada | Apagar os tokens na API (ver abaixo) → voltar à app | Regressa ao login com a mensagem de sessão expirada | | |
+
+Ensaio feito por ______ em __/__/2026. Reproduzido por ______ em __/__/2026.
