@@ -41,14 +41,14 @@ export default function HomeScreen() {
   }, [authenticatedFetch]);
 
   useEffect(() => {
-    if (selectedTaskId === null) void refreshTasks(true);
+    void refreshTasks();
     return () => { listRequest.current++; detailRequest.current++; };
   }, [refreshTasks]);
 
   // Back from the background: tasks may have been reassigned or rescheduled meanwhile.
   // An open task checks itself (TaskDetailScreen).
   useAppForeground(() => {
-    if (selectedTaskId === null) void refreshTasks();
+    if (selectedTaskId === null) void refreshTasks(true);
   });
 
   async function openTask(taskId: number) {
