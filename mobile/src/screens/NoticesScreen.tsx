@@ -60,13 +60,11 @@ function NoticeCard({ notice, busy, onOpenTask, onMarkRead }: NoticeCardProps) {
   return (
     <View style={[styles.card, !notice.read && styles.cardUnread]}>
       <View style={styles.cardHeading}>
-      <Text style={styles.message}>{noticeMessage(notice)}</Text>
+        <Text style={styles.cardTitle}>{noticeTitles[notice.type]}</Text>
         {!notice.read && <Text style={styles.unread}>NOVO</Text>}
       </View>
       <Text style={styles.property}>{notice.property.name}</Text>
-      <Text style={styles.message}>
-        {notice.type === 'booking_cancelled' ? 'Reserva cancelada' : 'Novas datas'}: {formatDay(notice.booking.checkIn)} — {formatDay(notice.booking.checkOut)}
-      </Text>
+      <Text style={styles.message}>{noticeMessage(notice)}</Text>
       <Text style={styles.timestamp}>Recebido {dateLabel(notice.notifiedAt)}</Text>
       {notice.task === null ? (
         <Text style={styles.unavailable}>Este aviso não está associado a uma tarefa.</Text>
