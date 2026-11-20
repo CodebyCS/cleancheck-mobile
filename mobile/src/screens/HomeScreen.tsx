@@ -22,16 +22,17 @@ export default function HomeScreen() {
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
 
-  const refreshTasks = useCallback(async () => {
+   // quiet: background refresh (back to the app) without the loading state.
+  // A failure never clears the list already shown; only the message is added.
+  const refreshTasks = useCallback(async (quiet = false) => {
     const request = ++listRequest.current;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     setListError(null);
     try {
       const data = await listMyTasks(authenticatedFetch);
       if (listRequest.current === request) setTasks(data);
     } catch (error) {
       if (listRequest.current === request) {
-        setTasks([]);
         setListError(error instanceof Error ? error.message : 'Não foi possível carregar as tarefas.');
       }
     } finally {
@@ -47,7 +48,7 @@ export default function HomeScreen() {
   // Back from the background: tasks may have been reassigned or rescheduled meanwhile.
   // An open task checks itself (TaskDetailScreen).
   useAppForeground(() => {
-    if (selectedTaskId === null) void refreshTasks();
+    if (selectedTaskId === null) void refreshTasks(true);
   });
 
   async function openTask(taskId: number) {

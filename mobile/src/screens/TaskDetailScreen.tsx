@@ -53,10 +53,15 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
 
     try {
       setCurrentTask(await getMyTask(currentTask.id, authenticatedFetch));
-    } catch {
-      setActionError(
-        'A API iniciou a tarefa, mas não foi possível atualizar os dados exibidos. Volte à lista e tente novamente.',
-      );
+    } catch (error) {
+      // Reassigned between the start and this refresh: same screen as any other lost access.
+      if (error instanceof TaskError && error.code === 'NOT_FOUND') {
+        setAccessLost(true);
+      } else {
+        setActionError(
+          'A API iniciou a tarefa, mas não foi possível atualizar os dados exibidos. Volte à lista e tente novamente.',
+        );
+      }
     } finally {
       setStarting(false);
     }
