@@ -2,6 +2,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { AuthError, AuthUser, getCurrentUser, login, LoginCredentials, logout } from '../services/auth';
 import { readAuthSession, removeAuthSession, saveAuthSession } from '../services/authTokenStorage';
 import { Alert } from 'react-native';
+import { fetch as expoFetch } from 'expo/fetch';
 
 type AuthSession = { token: string; user: AuthUser; expiresAt: string };
 type AuthContextValue = {
@@ -135,7 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/json');
     headers.set('Authorization', `Bearer ${session.token}`);
-    const response = await fetch(input, { ...init, headers });
+    // React Native's fetch cannot stream Expo File objects in multipart bodies
+    // reliably on Android. Use Expo's fetch implementation for FormData only;
+    // regular JSON requests keep the existing transport.
+    const request = init.body instanceof FormData ? expoFetch : fetch;
+    const response = await request(input, { ...init, headers });
     if (response.status === 401) {
       await clearLocalSession();
       throw new AuthError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');

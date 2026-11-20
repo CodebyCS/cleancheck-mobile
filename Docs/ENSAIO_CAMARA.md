@@ -24,10 +24,29 @@ Registo do ensaio da Sprint 4: tirar fotografia, gravar vídeo e enviar um fiche
 
 ## Aparelhos usados
 
-| # | Aparelho | Sistema | Versão Expo Go | Quem testou |
+| # | Aparelho | Sistema | Build instalada (EAS) | Quem testou |
 |---|---|---|---|---|
+| E1 | Emulador Android Medium Phone API 37 | Android 16 (API 37) | Build instalável EAS `e85561ad-a89e-4ade-a8f9-88172af3d8ae` | Pedro Maia (ensaio assistido) |
+| E2 | Mesmo emulador | Android 16 (API 37) | Build instalável EAS `300207f6-760e-4e05-937d-6a328b0aed33` | Pedro Maia (ensaio assistido) |
 | A1 | | | | |
 | A2 | | | | |
+
+### Execução E1 — API local
+
+| Passo | Resultado observado |
+|---|---|
+| Diagnóstico da API | `GET /api/health` devolveu `CleanCheck: ok · HTTP 200` no emulador. |
+| Login do prestador | Login concluído com a API local. |
+| Câmara negada | Depois de recusar a permissão, a app mostrou a mensagem de acesso à câmara e o atalho para abrir as definições. |
+| Fotografia | Capturada no emulador (`image/jpeg`, 61 KB); o ecrã confirmou **Recebido pela API**. |
+| Vídeo | Capturado no emulador (`video/mp4`, 1,3 MB, 15 s); o ecrã confirmou **Recebido pela API**. |
+| Galeria | Selecionado um PNG local (`image/png`, 316 KB); o ecrã confirmou **Recebido pela API**. O aviso do seletor sobre media na cloud foi dispensado; não era necessário configurar uma origem cloud para escolher uma fotografia local. |
+| Microfone negado | Na build E2, recusar o acesso ao iniciar vídeo mostrou a mensagem de microfone negado e o atalho para definições. Depois de conceder a permissão nas definições, tentar novamente abriu a câmara de vídeo. |
+| Falha de rede e retry | Na build E2, enviar com modo de avião mostrou a mensagem de falha de ligação. Depois de repor a rede, tentar novamente com o mesmo ficheiro foi confirmado pela API. |
+| Vídeo com microfone autorizado | Na build E2, depois de conceder a permissão, capturado um MP4 de 3 s (297 KB); o ecrã confirmou **Recebido pela API**. |
+| Reteste E2 em 20/11/2026 | Na build instalada, a câmara recusada mostrou a opção para abrir definições; a galeria enviou um PNG de 435 KB e a câmara enviou um MP4 de 3 s (315 KB), ambos confirmados pela API. Com modo de avião, o envio mostrou erro de rede; após repor a ligação, o retry do mesmo ficheiro foi confirmado. |
+
+O emulador usa a cena virtual da câmara e não substitui a validação da captura num aparelho físico. A API foi acedida no emulador através de `http://10.0.2.2:8000/api`; o perfil `preview-local` permite HTTP apenas para este ensaio local.
 
 ## Resultados
 
@@ -48,7 +67,9 @@ Preencher uma linha por envio. "Resultado" é o que o ecrã mostra: **Recebido p
 
 | Caso | Como provocar | Mensagem esperada | Confirmado |
 |---|---|---|---|
-| Permissão da câmara negada | Recusar o pedido de acesso | "Sem acesso à câmara. Ativa a permissão nas definições do telemóvel." | |
+| Permissão da câmara negada | Recusar o pedido de acesso | "Sem acesso à câmara. Podes tentar novamente ou abrir as definições do telemóvel." | Confirmado em E1 |
+| Permissão do microfone negada | Recusar o pedido ao iniciar vídeo | "Sem acesso ao microfone. Podes tentar novamente ou abrir as definições do telemóvel." | Confirmado em E2 |
+| Acesso a fotografias/ficheiros | Selecionar um ficheiro permitido no seletor do sistema | A app recebe apenas o ficheiro escolhido | Confirmado com PNG local em E1; a política do seletor Android não pede acesso amplo aos ficheiros |
 | Ficheiro acima do limite | Enviar vídeo com mais de 50 MB | "O ficheiro não pode ter mais de 50 MB." ou, se o PHP cortar antes, "O servidor recusou o ficheiro por ser demasiado grande…" | |
 | Sem rede | Modo de avião antes de enviar | "Não foi possível contactar a API. Verifica a ligação e tenta novamente." | |
 | Envio lento | Vídeo grande em rede fraca | "O envio demorou mais de 2 minutos e foi cancelado…" | |
@@ -79,3 +100,11 @@ Preencher uma linha por envio. "Resultado" é o que o ecrã mostra: **Recebido p
 Viável / viável com condições / não viável: ______
 
 Ensaio feito por ______ e ______ em __/__/2026. Reproduzido por ______ em __/__/2026.
+
+### Validação automatizada e pendências desta revisão
+
+- `npx.cmd tsc --noEmit`: passou.
+- `npm test` e `npm run lint`: não disponíveis, porque o `package.json` não define estes scripts.
+- O teste de feature `EvidenceTrialTest` da API não pôde arrancar: falta `api/vendor/autoload.php` neste checkout. Não foi alterada a API.
+- Ainda falta testar um ficheiro acima do limite e os erros `422` numa build instalada, repetir a captura num aparelho físico e registar a validação do Martim.
+- O endpoint testado é `POST /api/evidence-trials`: o ficheiro não fica associado a uma tarefa. A integração final de provas por tarefa depende do contrato/fluxo confirmado com Martim.
