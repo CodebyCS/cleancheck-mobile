@@ -227,6 +227,35 @@ export async function updateMyTaskNotes(
   });
 }
 
+export type TaskEvidenceFile = {
+  uri: string;
+  fileName: string;
+  mimeType: string;
+};
+
+export async function uploadMyTaskEvidence(
+  id: number,
+  file: TaskEvidenceFile,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<void> {
+  const formData = new FormData();
+
+  formData.append(
+    'file',
+    {
+      uri: file.uri,
+      name: file.fileName,
+      type: file.mimeType,
+    } as unknown as Blob,
+  );
+
+  await getJson(`/my/tasks/${id}/evidence`, authenticatedFetch, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+    body: formData,
+  });
+}
+
 export function taskTypeLabel(type: string): string {
   if (type === 'checkout_cleaning') return 'Limpeza após checkout';
   if (type === 'checkin_inspection') return 'Inspeção antes do check-in';
