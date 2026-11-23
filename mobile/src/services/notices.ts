@@ -2,15 +2,31 @@ import { AuthError } from './auth';
 import { apiUrl, fetchWithTimeout, HttpClientError } from './httpClient';
 import { AuthenticatedFetch } from './tasks';
 
+export type NoticeType =
+  | 'booking_updated'
+  | 'booking_cancelled'
+  | 'task_assigned'
+  | 'task_unassigned'
+  | 'task_cancelled';
+
+const noticeTypes: readonly string[] = [
+  'booking_updated',
+  'booking_cancelled',
+  'task_assigned',
+  'task_unassigned',
+  'task_cancelled',
+];
+
 export type BookingNotice = {
   id: number;
-  type: 'booking_updated' | 'booking_cancelled';
+  type: NoticeType;
   read: boolean;
   readAt: string | null;
   notifiedAt: string;
   booking: { id: number; status: string; checkIn: string; checkOut: string };
   property: { id: number; name: string };
-  task: { id: number; available: boolean } | null;
+  // scheduledStart/End: task window at the time of the notice (task notices only).
+  task: { id: number; available: boolean; scheduledStart?: string | null; scheduledEnd?: string | null } | null;
 };
 
 export type BookingNoticePage = {
@@ -37,11 +53,16 @@ export class NoticeError extends Error {
   }
 }
 
+// An API without the schedule fields still passes (undefined is treated as "no schedule").
+function isOptionalText(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string';
+}
+
 function isNotice(value: unknown): value is BookingNotice {
   if (!value || typeof value !== 'object') return false;
   const notice = value as Record<string, unknown>;
   if (!Number.isInteger(notice.id) || typeof notice.id !== 'number'
-    || (notice.type !== 'booking_updated' && notice.type !== 'booking_cancelled')
+    || typeof notice.type !== 'string' || !noticeTypes.includes(notice.type)
     || typeof notice.read !== 'boolean'
     || !(notice.readAt === null || typeof notice.readAt === 'string')
     || typeof notice.notifiedAt !== 'string') return false;
@@ -52,7 +73,8 @@ function isNotice(value: unknown): value is BookingNotice {
   return Boolean(booking && Number.isInteger(booking.id) && typeof booking.id === 'number'
     && typeof booking.status === 'string' && typeof booking.checkIn === 'string' && typeof booking.checkOut === 'string'
     && property && Number.isInteger(property.id) && typeof property.id === 'number' && typeof property.name === 'string'
-    && (task === null || (Number.isInteger(task.id) && typeof task.id === 'number' && typeof task.available === 'boolean')));
+    && (task === null || (Number.isInteger(task.id) && typeof task.id === 'number' && typeof task.available === 'boolean'
+      && isOptionalText(task.scheduledStart) && isOptionalText(task.scheduledEnd))));
 }
 
 // Shared by the list and the "mark as read" requests.

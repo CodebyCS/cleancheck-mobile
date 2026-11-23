@@ -1,20 +1,43 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AuthenticatedFetch } from '../services/tasks';
-import { BookingNotice, formatDay, listBookingNotices, markNoticeAsRead } from '../services/notices';
+import { BookingNotice, formatDay, listBookingNotices, markNoticeAsRead, NoticeType } from '../services/notices';
+import { useAppForeground } from '../hooks/useAppForeground';
 
 type NoticesScreenProps = {
   authenticatedFetch: AuthenticatedFetch;
   onOpenTask: (taskId: number) => void;
 };
 
-function noticeTitle(type: BookingNotice['type']): string {
-  return type === 'booking_updated' ? 'Reserva alterada' : 'Reserva cancelada';
-}
+const noticeTitles: Record<NoticeType, string> = {
+  booking_updated: 'Reserva alterada',
+  booking_cancelled: 'Reserva cancelada',
+  task_assigned: 'Nova tarefa atribuída',
+  task_unassigned: 'Tarefa reatribuída',
+  task_cancelled: 'Tarefa cancelada',
+};
 
 function dateLabel(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('pt-PT', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+}
+
+function noticeMessage(notice: BookingNotice): string {
+  const stay = `${formatDay(notice.booking.checkIn)} — ${formatDay(notice.booking.checkOut)}`;
+  const start = notice.task?.scheduledStart ? dateLabel(notice.task.scheduledStart) : null;
+
+  switch (notice.type) {
+    case 'booking_updated':
+      return `Novas datas: ${stay}`;
+    case 'booking_cancelled':
+      return `Reserva cancelada: ${stay}`;
+    case 'task_assigned':
+      return start ? `Agendada para ${start}` : `Estadia: ${stay}`;
+    case 'task_unassigned':
+      return start ? `A tarefa de ${start} passou para outro prestador.` : 'A tarefa passou para outro prestador.';
+    case 'task_cancelled':
+      return start ? `A tarefa de ${start} foi cancelada.` : 'A tarefa foi cancelada.';
+  }
 }
 
 function messageOf(cause: unknown, fallback: string): string {
@@ -31,20 +54,21 @@ type NoticeCardProps = {
 function NoticeCard({ notice, busy, onOpenTask, onMarkRead }: NoticeCardProps) {
   const canOpenTask = notice.task !== null && notice.task.available;
 
+    // These types already say why the task is gone; the generic line would repeat it.
+  const explainedByMessage = notice.type === 'task_unassigned' || notice.type === 'task_cancelled';
+
   return (
     <View style={[styles.card, !notice.read && styles.cardUnread]}>
       <View style={styles.cardHeading}>
-        <Text style={styles.cardTitle}>{noticeTitle(notice.type)}</Text>
+        <Text style={styles.cardTitle}>{noticeTitles[notice.type]}</Text>
         {!notice.read && <Text style={styles.unread}>NOVO</Text>}
       </View>
       <Text style={styles.property}>{notice.property.name}</Text>
-      <Text style={styles.message}>
-        {notice.type === 'booking_cancelled' ? 'Reserva cancelada' : 'Novas datas'}: {formatDay(notice.booking.checkIn)} — {formatDay(notice.booking.checkOut)}
-      </Text>
+      <Text style={styles.message}>{noticeMessage(notice)}</Text>
       <Text style={styles.timestamp}>Recebido {dateLabel(notice.notifiedAt)}</Text>
       {notice.task === null ? (
         <Text style={styles.unavailable}>Este aviso não está associado a uma tarefa.</Text>
-      ) : !notice.task.available && (
+      ) : !notice.task.available && !explainedByMessage && (
         <Text style={styles.unavailable}>A tarefa já não está disponível para a tua conta.</Text>
       )}
       {busy ? (
@@ -106,6 +130,11 @@ export default function NoticesScreen({ authenticatedFetch, onOpenTask }: Notice
     void refresh();
     return () => { request.current++; };
   }, [refresh]);
+
+  // Back from the background: notices may have arrived while the app was away.
+  useAppForeground(() => {
+    void refresh();
+  });
 
   function pullToRefresh() {
     setRefreshing(true);
