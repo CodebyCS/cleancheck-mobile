@@ -40,6 +40,26 @@ function noticeMessage(notice: BookingNotice): string {
   }
 }
 
+function nextStep(notice: BookingNotice): string | null {
+  // Saved when the notice was created: it no longer applies if the task left this account.
+  if (!notice.task?.available || !notice.change) return null;
+
+  switch (notice.change.action) {
+    case 'check_new_schedule':
+      return 'Confirma o novo horário da tarefa.';
+    case 'continue_task':
+      return 'A tua tarefa em curso foi mantida. Podes continuar.';
+    case 'contact_supervisor':
+      return 'A reserva foi cancelada, mas a tua tarefa foi mantida. Fala com o supervisor antes de continuar.';
+    case 'open_task':
+      return 'Abre a tarefa para ver os detalhes.';
+    default:
+      return notice.change.executionPreserved && notice.change.taskStatus === 'completed'
+        ? 'A tarefa já concluída não foi alterada.'
+        : null;
+  }
+}
+
 function messageOf(cause: unknown, fallback: string): string {
   return cause instanceof Error ? cause.message : fallback;
 }
@@ -57,6 +77,8 @@ function NoticeCard({ notice, busy, onOpenTask, onMarkRead }: NoticeCardProps) {
     // These types already say why the task is gone; the generic line would repeat it.
   const explainedByMessage = notice.type === 'task_unassigned' || notice.type === 'task_cancelled';
 
+  const hint = nextStep(notice);
+
   return (
     <View style={[styles.card, !notice.read && styles.cardUnread]}>
       <View style={styles.cardHeading}>
@@ -65,6 +87,7 @@ function NoticeCard({ notice, busy, onOpenTask, onMarkRead }: NoticeCardProps) {
       </View>
       <Text style={styles.property}>{notice.property.name}</Text>
       <Text style={styles.message}>{noticeMessage(notice)}</Text>
+        {hint && <Text style={styles.nextStep}>{hint}</Text>}
       <Text style={styles.timestamp}>Recebido {dateLabel(notice.notifiedAt)}</Text>
       {notice.task === null ? (
         <Text style={styles.unavailable}>Este aviso não está associado a uma tarefa.</Text>
@@ -238,6 +261,7 @@ export default function NoticesScreen({ authenticatedFetch, onOpenTask }: Notice
 }
 
 const styles = StyleSheet.create({
+  nextStep: { color: '#172B4D', fontSize: 14, fontWeight: '700', lineHeight: 20, marginTop: 8 },
   page: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 112, backgroundColor: '#F5F8FC' },
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
   brand: { color: '#1769E8', fontSize: 17, fontWeight: '700', marginBottom: 5 },
