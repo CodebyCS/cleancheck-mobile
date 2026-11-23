@@ -125,4 +125,4 @@ Ensaio feito por ______ e ______ em __/__/2026. Reproduzido por ______ em __/__/
 - `npm test` e `npm run lint`: não disponíveis, porque o `package.json` não define estes scripts.
 - O teste de feature `EvidenceTrialTest` da API não pôde arrancar: falta `api/vendor/autoload.php` neste checkout. Não foi alterada a API.
 - Ainda falta testar um ficheiro acima do limite e os erros `422` numa build instalada, repetir a captura num aparelho físico e registar a validação do Martim.
-- O endpoint testado é `POST /api/evidence-trials`: o ficheiro não fica associado a uma tarefa. A integração final de provas por tarefa depende do contrato/fluxo confirmado com Martim.
+- Os ensaios E1/E2 acima foram realizados antes da associação a tarefas, usando `POST /api/evidence-trials`; não validam a autorização nem a gravação da tarefa. A versão atual usa `POST /api/my/tasks/{task}/evidence-trials`: a API regista `task_id` e o autor autenticado quando a tarefa está atribuída ao prestador. Continua a ser um ensaio, não uma prova final da limpeza.
