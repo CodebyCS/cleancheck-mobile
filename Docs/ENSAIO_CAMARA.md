@@ -1,6 +1,6 @@
 # Ensaio de câmara e envio de provas
 
-Registo do ensaio da Sprint 4: tirar fotografia, gravar vídeo e enviar um ficheiro fictício para a API protegida a partir de um telemóvel real.
+Registo do ensaio da Sprint 4: tirar fotografia, gravar vídeo e enviar um ficheiro fictício para a API protegida a partir da app mobile.
 
 **Isto é um ensaio.** O ficheiro vai para `POST /api/evidence-trials`, não fica ligado a nenhuma tarefa e não conta como prova da limpeza. O fluxo completo (vídeo inicial e final por tarefa, checklist, vistoria e supervisão) está descrito em [FLUXOS_FUTUROS.md](FLUXOS_FUTUROS.md) e fica para os sprints seguintes.
 
@@ -17,7 +17,7 @@ Registo do ensaio da Sprint 4: tirar fotografia, gravar vídeo e enviar um fiche
 
 | | Fotografia | Vídeo |
 |---|---|---|
-| Formatos | JPG, PNG, WEBP, HEIC | MP4, MOV |
+| Formatos | JPG, PNG, WEBP, HEIC, HEIF | MP4, MOV |
 | Tamanho máximo | 10 MB | 50 MB |
 | Duração máxima na câmara | — | 60 s |
 | Tempo máximo de envio na app | 2 min | 2 min |

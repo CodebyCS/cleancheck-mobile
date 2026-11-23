@@ -131,7 +131,10 @@ export async function uploadEvidenceTrial(
   if (response.status === 429) {
     throw new EvidenceTrialError('TOO_MANY_REQUESTS', 'Demasiados envios seguidos. Espera um minuto e tenta outra vez.', 429);
   }
-  if (!response.ok) {
+  // The trial contract confirms HTTP 201 for a newly received file. Treat any
+  // other status (including an unexpected 200) as unconfirmed, so the UI never
+  // reports a successful upload without the API's documented confirmation.
+  if (response.status !== 201) {
     throw new EvidenceTrialError('SERVER', `A API respondeu com erro ${response.status}.`, response.status);
   }
 
