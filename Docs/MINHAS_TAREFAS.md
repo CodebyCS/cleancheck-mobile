@@ -38,3 +38,18 @@ Os botões de vídeo e conclusão no detalhe continuam identificados como simula
 - O typecheck foi executado após a integração de avisos. O fluxo ainda precisa de validação manual num dispositivo real com avisos reais da API.
 - Na validação anterior da agenda e autenticação, foram usados dados simulados para lista preenchida/vazia, detalhe, erros `401`/`404`, falha de rede, login, recuperação da identidade `service_provider` e ciclo de sessão no SecureStore. Estes resultados não substituem testes do novo fluxo de avisos.
 - O percurso visual num dispositivo real e a reatribuição de A para B com a API real ainda precisam de ser executados.
+
+### Demonstração integrada — issue #18 (24/11/2026)
+
+Verificações feitas contra a API alojada `https://api.cleancheck.atec-porto.eu/api`:
+
+- `GET /api/health`: HTTP 200 (`CleanCheck`, estado `ok`).
+- Login mobile da conta fictícia `evertonduarte@cleancheck.test` (`service_provider`): sucesso.
+- `GET /my/tasks`: devolveu as tarefas #3 (22/11/2026) e #1 (25/11/2026). Não havia tarefa agendada para 24/11/2026; existia apenas uma tarefa passada e uma próxima.
+- `GET /my/tasks/1` e `GET /my/tasks/3`: HTTP 200. Os detalhes atuais foram devolvidos pela API.
+- `GET /booking-notices`: lista vazia (`data: []`, `meta.unreadCount: 0`). Não foi possível demonstrar a abertura de uma tarefa a partir de um aviso real.
+- A build instalada no emulador estava aberta no ecrã de ensaio de ficheiros e mostrava “A tarefa já não está disponível para a tua conta”. Não confirmei o ID do binário instalado nem completei na interface o percurso de login, tarefas, agenda e avisos.
+
+Foi encontrada a tarefa fictícia #4, pendente e sem prestador, associada à reserva de teste `issue18-codex-20261123@cleancheck.test`. A tentativa de a atribuir à conta de teste através de `PATCH /api/tasks/4` devolveu uma página HTML de bloqueio ModSecurity (`403`), em vez da resposta JSON da API. Uma consulta posterior confirmou que a tarefa continuava sem prestador; não foram alterados dados. Assim, não foi possível preparar a tarefa de hoje nem gerar o aviso associado.
+
+**Estado:** o primeiro ponto da issue #18 continua pendente. Para o concluir, é necessário que a equipa de alojamento permita a operação administrativa de atribuição no ambiente de teste (ou prepare os dados), e depois repetir a demonstração na build instalada. Também é preciso confirmar o ID da build efetivamente instalada e validar que a conta usada na app é a conta de teste indicada acima. Nenhuma palavra-passe foi registada.
