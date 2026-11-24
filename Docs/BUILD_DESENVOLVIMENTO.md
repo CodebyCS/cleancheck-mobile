@@ -82,12 +82,13 @@ ligada à API partilhada. A validação do ponto 2 da issue #17 foi feita em
   `https://api.cleancheck.atec-porto.eu/api`; o endpoint de diagnóstico da API
   respondeu HTTP 200 (`{"application":"CleanCheck","status":"ok"}`).
 
-Assim, o ponto 2 está concluído para a instalação autónoma Android validada no
-emulador. A instalação num aparelho físico por outro colega não foi feita e pode
-ser registada como validação adicional; não foi necessária para abrir esta build
-sem a sessão de desenvolvimento do autor. O APK anterior `preview-local` usa a
-API local e não deve ser usado para validar o ambiente partilhado. A validação
-iOS não faz parte deste ensaio e requer credenciais Apple e um iPhone registado.
+Isto confirma que a build Android instalável foi aberta sem Expo Go nem sessão
+Metro e ligada à API partilhada. A instalação e o ensaio independente por outro
+colega num aparelho Android físico ainda não estão registados; mantêm-se como
+validação pendente se forem exigidos pela checklist da equipa. O APK anterior
+`preview-local` usa a API local e não deve ser usado para validar o ambiente
+partilhado. A validação iOS não faz parte deste ensaio e requer credenciais
+Apple e um iPhone registado.
 
 ## Teste local no emulador Android
 
@@ -143,5 +144,6 @@ tarefa a partir de um aviso. Esse percurso pertence à demonstração integrada 
 issue #18 e exige dados de teste apropriados. Os resultados desta secção usam a
 API local (`10.0.2.2`) e não validam o ambiente partilhado. A build `preview`
 autónoma ligada à API alojada foi validada separadamente no emulador, conforme
-registado acima. A instalação num Android físico por outro colega continua como
-validação adicional, caso a equipa a exija.
+registado acima. A instalação independente por outro colega num Android físico
+continua por registar para o segundo ponto da issue #17. O endereço `10.0.2.2`
+é exclusivo do emulador local e não deve ser usado por outro aparelho.

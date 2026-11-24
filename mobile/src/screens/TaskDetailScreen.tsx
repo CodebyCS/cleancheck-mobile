@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, TextInput } from 'react-native';
 import { taskDateLabel, taskStatusLabel, taskTypeLabel, TaskDetail } from '../services/tasks';
 import { useAuth } from '../auth/AuthContext';
-import { getMyTask, startMyTask, updateMyTaskNotes, completeMyTask } from "../services/tasks";
+import { getMyTask, startMyTask, updateMyTaskNotes, completeMyTask, TaskError } from "../services/tasks";
+import { useAppForeground } from '../hooks/useAppForeground';
 
 type TaskDetailScreenProps = { task: TaskDetail; onBack: () => void; backLabel?: string };
 
@@ -20,6 +21,24 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
   const [starting, setStarting] = useState(false);
   const [actionError, setActionError] = useState('');
 
+  // Set when the API stops returning this task to this provider (reassigned, cancelled or removed).
+  const [accessLost, setAccessLost] = useState(false);
+
+  function reportError(error: unknown, fallback: string) {
+    if (error instanceof TaskError && error.code === 'NOT_FOUND') {
+      setAccessLost(true);
+      return;
+    }
+    setActionError(error instanceof Error ? error.message : fallback);
+  }
+
+  // Back from the background: the task may have been reassigned while the app was away.
+  useAppForeground(() => {
+    getMyTask(currentTask.id, authenticatedFetch)
+      .then(setCurrentTask)
+      .catch((error: unknown) => reportError(error, 'Não foi possível atualizar a tarefa.'));
+  });
+
   async function handleStart() {
     setStarting(true);
     setActionError('');
@@ -27,28 +46,31 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
     try {
       await startMyTask(currentTask.id, authenticatedFetch);
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : 'Não foi possível iniciar a tarefa.',
-      );
+      reportError(error, 'Não foi possível iniciar a tarefa.');
       setStarting(false);
       return;
     }
 
     try {
       setCurrentTask(await getMyTask(currentTask.id, authenticatedFetch));
-    } catch {
-      setActionError(
-        'A API iniciou a tarefa, mas não foi possível atualizar os dados exibidos. Volte à lista e tente novamente.',
-      );
+    } catch (error) {
+      // Reassigned between the start and this refresh: same screen as any other lost access.
+      if (error instanceof TaskError && error.code === 'NOT_FOUND') {
+        setAccessLost(true);
+      } else {
+        setActionError(
+          'A API iniciou a tarefa, mas não foi possível atualizar os dados exibidos. Volte à lista e tente novamente.',
+        );
+      }
     } finally {
       setStarting(false);
     }
   }
 
   async function handleSaveNotes() {
-  setSavingNotes(true);
-  setActionError('');
-  setNotesMessage('');
+    setSavingNotes(true);
+    setActionError('');
+    setNotesMessage('');
 
     try {
       const notes = providerNotes.trim() === '' ? null : providerNotes;
@@ -57,9 +79,7 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
       setCurrentTask(await getMyTask(currentTask.id, authenticatedFetch));
       setNotesMessage('Notas guardadas.');
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : 'Não foi possível guardar as notas.',
-      );
+      reportError(error, 'Não foi possível guardar as notas.');
     } finally {
       setSavingNotes(false);
     }
@@ -73,12 +93,27 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
       await completeMyTask(currentTask.id, authenticatedFetch);
       setCurrentTask(await getMyTask(currentTask.id, authenticatedFetch));
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : 'Não foi possível concluir a tarefa.',
-      );
+      reportError(error, 'Não foi possível concluir a tarefa.');
     } finally {
       setCompleting(false);
     }
+  }
+
+  if (accessLost) {
+    return (
+      <ScrollView contentContainerStyle={styles.page}>
+        <View style={styles.topRow}>
+          <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}>
+            <Text style={styles.back}>‹ {backLabel}</Text>
+          </Pressable>
+        </View>
+        <View style={styles.notice}>
+          <Text style={styles.noticeText}>
+            Esta tarefa já não está atribuída à tua conta: foi reatribuída, cancelada ou removida. Volta à lista para ver as tarefas atuais.
+          </Text>
+        </View>
+      </ScrollView>
+    );
   }
 
   return (

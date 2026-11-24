@@ -53,3 +53,23 @@ Verificações feitas contra a API alojada `https://api.cleancheck.atec-porto.eu
 Foi encontrada a tarefa fictícia #4, pendente e sem prestador, associada à reserva de teste `issue18-codex-20261123@cleancheck.test`. A tentativa de a atribuir à conta de teste através de `PATCH /api/tasks/4` devolveu uma página HTML de bloqueio ModSecurity (`403`), em vez da resposta JSON da API. Uma consulta posterior confirmou que a tarefa continuava sem prestador; não foram alterados dados. Assim, não foi possível preparar a tarefa de hoje nem gerar o aviso associado.
 
 **Estado:** o primeiro ponto da issue #18 continua pendente. Para o concluir, é necessário que a equipa de alojamento permita a operação administrativa de atribuição no ambiente de teste (ou prepare os dados), e depois repetir a demonstração na build instalada. Também é preciso confirmar o ID da build efetivamente instalada e validar que a conta usada na app é a conta de teste indicada acima. Nenhuma palavra-passe foi registada.
+
+## Reconexão e acesso atual
+
+- Quando a app volta ao primeiro plano (telemóvel desbloqueado, regresso de outra app), a lista de tarefas e a de avisos voltam a ser pedidas à API, sem indicador de carregamento. Se a rede ainda não voltou, a lista anterior mantém-se com a mensagem de erro.
+- Uma tarefa aberta também é consultada outra vez nesse momento.
+- Se a API responder `404` a uma tarefa aberta (ao voltar à app, ao iniciar, ao guardar notas ou ao concluir), o detalhe é substituído por "Esta tarefa já não está atribuída à tua conta…" e só permite voltar à lista. Os dados da tarefa deixam de ser mostrados.
+- Sessão expirada (`401`) em qualquer destes pedidos: o `AuthContext` limpa a sessão e a app regressa ao login.
+- A reconexão usa o `AppState` do React Native (sem dependências novas). Mudanças de rede com a app aberta não são detetadas; nesse caso usar **Atualizar** ou puxar o ecrã.
+
+### Registo do ensaio no dispositivo
+
+| # | Caso | Como provocar | Esperado | Aparelho | Resultado |
+|---|---|---|---|---|---|
+| 1 | Aviso novo com a app em segundo plano | App em **Avisos** → bloquear o telemóvel → no web, ajustar a data de uma reserva desta pessoa → desbloquear | O aviso aparece sem puxar o ecrã | | |
+| 2 | Reatribuição com o detalhe aberto | Abrir uma tarefa → bloquear → no web, reatribuir a outro prestador → desbloquear | Mensagem "já não está atribuída" sem dados da tarefa | | |
+| 3 | Reatribuição sem sair da app | Abrir uma tarefa pendente → no web, reatribuir → **Iniciar tarefa** | A mesma mensagem; a tarefa não é iniciada | | |
+| 4 | Falha seguida de recuperação | Modo de avião → **Atualizar** em Avisos → desligar o modo de avião → mudar de app e voltar | Erro com a lista anterior; depois atualiza sozinho e o erro desaparece | | |
+| 5 | Sessão expirada | Apagar os tokens na API (ver abaixo) → voltar à app | Regressa ao login com a mensagem de sessão expirada | | |
+
+Ensaio feito por ______ em __/__/2026. Reproduzido por ______ em __/__/2026.

@@ -75,12 +75,13 @@ export default function TasksScreen({
       )}
       {loading ? (
         <View style={styles.messageCard}><ActivityIndicator color="#1769E8" /><Text style={styles.emptyText}>A carregar tarefas...</Text></View>
-      ) : error ? (
+      ) : error && visibleTasks.length === 0 ? (
         <View style={styles.messageCard}><Text style={styles.error}>{error}</Text><Pressable accessibilityRole="button" onPress={onRefresh}><Text style={styles.open}>Tentar novamente</Text></Pressable></View>
       ) : visibleTasks.length === 0 ? (
         <View style={styles.messageCard}><Text style={styles.emptyTitle}>Sem tarefas</Text><Text style={styles.emptyText}>{showPrevious ? 'Não existem tarefas atribuídas neste momento.' : 'Não existem tarefas para hoje nem para os próximos dias.'}</Text></View>
       ) : (
         <>
+          {error && <Text style={[styles.error, styles.banner]} accessibilityLiveRegion="polite">{error}</Text>}
           <Text style={styles.sectionTitle}>Hoje</Text>
           {today.length ? today.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />) : <Text style={styles.emptyText}>Sem tarefas para hoje.</Text>}
           <Text style={styles.sectionTitle}>Próximas</Text>
@@ -94,6 +95,7 @@ export default function TasksScreen({
 }
 
 const styles = StyleSheet.create({
+  banner: { marginBottom: 16 },
   page: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 112, backgroundColor: '#F5F8FC' },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   brand: { color: '#1769E8', fontSize: 17, fontWeight: '700', marginBottom: 5 },
