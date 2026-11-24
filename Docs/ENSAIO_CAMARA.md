@@ -32,9 +32,15 @@ Registar uma linha por execução; não reutilizar os IDs históricos abaixo com
 |---|---|---|---|---|---|---|
 | 24/11/2026 | `a6e25bde-7959-4981-9548-44013bbd7e99` | `preview` | API alojada `https://api.cleancheck.atec-porto.eu/api` | Emulador `Medium_Phone_API_37.0` (API 37) | `evertonduarte@cleancheck.test` (`service_provider`) | Health e login passaram; GET de tarefas mostrou tarefas #1 e #3 atribuídas. Fotografia fictícia JPEG de 62 KB, selecionada para a tarefa #1: envio falhou com `404`. Um POST sem autenticação à mesma rota também devolveu `404`, indicando que a rota ainda não está publicada nesta API. Nenhuma confirmação de envio foi apresentada. |
 
+### Verificação após o merge da API — 24/11/2026
+
+O PR da API que inclui o endpoint associado à tarefa foi merged. Verifiquei novamente a API alojada `https://api.cleancheck.atec-porto.eu/api`: `GET /health` devolveu `200` (`{"application":"CleanCheck","status":"ok"}`), mas um `POST` sem autenticação para `/my/tasks/1/evidence-trials` continuou a devolver `404`. Como a rota exige autenticação, este pedido não valida o envio mobile; o resultado indica que o endpoint ainda não está acessível nesta implantação (ou que o ambiente ainda não recebeu a versão merged). Não foi possível confirmar um `401` sem sessão nem um `201` autenticado.
+
+O emulador/ADB não estava disponível nesta sessão para repetir o envio na build `a6e25bde-7959-4981-9548-44013bbd7e99`. Quando a rota estiver publicada, repetir na build com a conta fictícia e uma tarefa atualmente atribuída, e registar o código HTTP, o ID devolvido e os dados da execução nesta tabela. Não é necessário gerar outra build se o binário instalado já contém a versão mobile atual e a configuração aponta para esta mesma API.
+
 ## Como fazer o ensaio
 
-1. API com `POST /api/my/tasks/{task}/evidence-trials` disponível (contrato em `cleancheck-api/Docs/contracts/evidence-trial.md`).
+1. API com `POST /api/my/tasks/{task}/evidence-trials` publicada e disponível (contrato em `cleancheck-api/Docs/contracts/evidence-trial.md`). A última verificação em 24/11/2026 ainda recebeu `404`; não considerar o ensaio de envio concluído até a rota estar acessível.
 2. No `php.ini` da API: `upload_max_filesize = 50M` e `post_max_size = 55M`; se aplicável, configurar o limite equivalente no proxy.
 3. Build `preview` configurada no EAS com `EXPO_PUBLIC_API_URL` e `EXPO_PUBLIC_API_HEALTH_URL` para a API HTTPS de teste; ou build `preview-local` para o emulador local.
 4. Entrar com uma conta de prestador (dados fictícios do seeder).
@@ -150,5 +156,5 @@ Ensaio feito por ______ e ______ em __/__/2026. Reproduzido por ______ em __/__/
 - `npx.cmd tsc --noEmit`: passou.
 - `npm test` e `npm run lint`: não disponíveis, porque o `package.json` não define estes scripts.
 - O teste de feature `EvidenceTrialTest` da API não pôde arrancar: falta `api/vendor/autoload.php` neste checkout. Não foi alterada a API.
-- A build atual confirmou login, carregamento de tarefas e seleção/captura do ficheiro, mas não confirmou o envio associado: a API alojada devolveu `404` para `POST /api/my/tasks/1/evidence-trials`, inclusive num pedido sem autenticação, sinal de que a rota não está publicada no ambiente. Depois de integrar/publicar a API, repetir o envio nesta build ou gerar uma nova se o binário/configuração mudar. Ainda falta testar ficheiros inválidos/acima dos limites, obter a validação do Martim e repetir a captura num aparelho físico; o emulador não substitui essa verificação.
+- A build `a6e25bde-7959-4981-9548-44013bbd7e99` confirmou login, carregamento de tarefas e seleção do ficheiro, mas o envio associado não foi confirmado. Após o merge do PR da API, `GET /api/health` continua a responder `200`, enquanto `POST /api/my/tasks/1/evidence-trials` sem autenticação respondeu `404` em 24/11/2026. Falta a API alojada publicar/encaminhar a rota; depois disso, repetir o envio autenticado na build e registar a resposta `201` e o ID do ensaio. A documentação do endpoint e os limites está atualizada acima; a validação de ficheiros inválidos/acima dos limites e a captura num aparelho físico continuam pendentes.
 - Os ensaios E1/E2 acima foram realizados antes da associação a tarefas, usando `POST /api/evidence-trials`; não validam a autorização nem a gravação da tarefa. A build atual usa `POST /api/my/tasks/{task}/evidence-trials`, que regista a tarefa e o autor autenticado quando a tarefa está atribuída ao prestador. Continua a ser um ensaio, não uma prova final da limpeza.
