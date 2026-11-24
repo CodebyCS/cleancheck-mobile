@@ -1,5 +1,6 @@
 import { AuthError } from './auth';
 import { apiUrl, fetchWithTimeout } from './httpClient';
+import { File } from 'expo-file-system';
 
 export type TaskListItem = {
   id: number;
@@ -42,6 +43,7 @@ async function getJson(path: string, authenticatedFetch: AuthenticatedFetch, ini
   try {
     response = await fetchWithTimeout(url, init, authenticatedFetch);
   } catch (error) {
+    console.error('Task API request failed', path, error);
     if (error instanceof AuthError && error.code === 'SESSION_EXPIRED') {
       throw new TaskError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
     }
@@ -239,15 +241,7 @@ export async function uploadMyTaskEvidence(
   authenticatedFetch: AuthenticatedFetch,
 ): Promise<void> {
   const formData = new FormData();
-
-  formData.append(
-    'file',
-    {
-      uri: file.uri,
-      name: file.fileName,
-      type: file.mimeType,
-    } as unknown as Blob,
-  );
+  formData.append('file', new File(file.uri), file.fileName);
 
   await getJson(`/my/tasks/${id}/evidence`, authenticatedFetch, {
     method: 'POST',
