@@ -70,9 +70,9 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
   }
 
   async function handleSaveNotes() {
-  setSavingNotes(true);
-  setActionError('');
-  setNotesMessage('');
+    setSavingNotes(true);
+    setActionError('');
+    setNotesMessage('');
 
     try {
       const notes = providerNotes.trim() === '' ? null : providerNotes;
@@ -100,8 +100,8 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
       setCompleting(false);
     }
   }
-  
-    if (accessLost) {
+
+  if (accessLost) {
     return (
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.topRow}>

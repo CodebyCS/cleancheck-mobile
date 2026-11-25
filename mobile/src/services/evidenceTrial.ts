@@ -1,4 +1,5 @@
 import { apiUrl, AuthError } from './auth';
+import { File } from 'expo-file-system';
 
 // Trial only: tests the camera and the upload to the API. Not linked to any task.
 
@@ -90,8 +91,10 @@ export async function uploadEvidenceTrial(
   authenticatedFetch: AuthenticatedFetch,
 ): Promise<{ result: EvidenceTrialResult; durationMs: number }> {
   const form = new FormData();
-  // React Native accepts { uri, name, type } as a file part.
-  form.append('file', { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
+  // Expo File + expo/fetch streams native file URIs rather than materializing
+  // the entire video through React Native's FormData bridge.
+  const uploadFile = new File(file.uri);
+  form.append('file', uploadFile, file.name);
   if (device) form.append('device', device);
 
   const controller = new AbortController();
@@ -128,7 +131,10 @@ export async function uploadEvidenceTrial(
   if (response.status === 429) {
     throw new EvidenceTrialError('TOO_MANY_REQUESTS', 'Demasiados envios seguidos. Espera um minuto e tenta outra vez.', 429);
   }
-  if (!response.ok) {
+  // The trial contract confirms HTTP 201 for a newly received file. Treat any
+  // other status (including an unexpected 200) as unconfirmed, so the UI never
+  // reports a successful upload without the API's documented confirmation.
+  if (response.status !== 201) {
     throw new EvidenceTrialError('SERVER', `A API respondeu com erro ${response.status}.`, response.status);
   }
 

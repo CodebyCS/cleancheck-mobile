@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, PermissionsAndroid, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import InfoRow from '../components/InfoRow';
 import { AuthError } from '../services/auth';
@@ -41,24 +41,37 @@ export default function CameraTrialScreen({ onBack }: CameraTrialScreenProps) {
   const [device, setDevice] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [result, setResult] = useState<{ data: EvidenceTrialResult; durationMs: number } | null>(null);
 
   async function pick(source: Source) {
     setError('');
+    setPermissionDenied(false);
     setResult(null);
 
     try {
       if (source === 'library') {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permission.granted) {
-          setError('Sem acesso às fotografias. Ativa a permissão nas definições do telemóvel.');
+          setPermissionDenied(true);
+          setError('Sem acesso às fotografias. Podes tentar novamente ou abrir as definições do telemóvel.');
           return;
         }
       } else {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
-          setError('Sem acesso à câmara. Ativa a permissão nas definições do telemóvel.');
+          setPermissionDenied(true);
+          setError('Sem acesso à câmara. Podes tentar novamente ou abrir as definições do telemóvel.');
           return;
+        }
+
+        if (source === 'video' && Platform.OS === 'android') {
+          const microphonePermission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+          if (microphonePermission !== PermissionsAndroid.RESULTS.GRANTED) {
+            setPermissionDenied(true);
+            setError('Sem acesso ao microfone. Podes tentar novamente ou abrir as definições do telemóvel.');
+            return;
+          }
         }
       }
 
@@ -160,6 +173,11 @@ export default function CameraTrialScreen({ onBack }: CameraTrialScreenProps) {
       )}
 
       {error !== '' && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
+      {permissionDenied && (
+        <Pressable accessibilityRole="button" onPress={() => void Linking.openSettings()} style={styles.linkButton}>
+          <Text style={styles.linkText}>Abrir definições da app</Text>
+        </Pressable>
+      )}
 
       {result && (
         <View style={[styles.card, styles.success]} accessibilityLiveRegion="polite">
