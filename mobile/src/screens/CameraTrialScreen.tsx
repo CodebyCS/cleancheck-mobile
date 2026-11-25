@@ -1,10 +1,12 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Linking, PermissionsAndroid, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import InfoRow from '../components/InfoRow';
 import { AuthError } from '../services/auth';
+import { listMyTasks, TaskListItem } from '../services/tasks';
 import {
+  EvidenceTrialError,
   EvidenceTrialResult,
   exceedsLimit,
   formatBytes,
@@ -36,6 +38,10 @@ function toTrialFile(asset: ImagePicker.ImagePickerAsset): TrialFile {
 
 export default function CameraTrialScreen({ onBack }: CameraTrialScreenProps) {
   const { authenticatedFetch } = useAuth();
+  const [tasks, setTasks] = useState<TaskListItem[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [tasksError, setTasksError] = useState('');
+  const [taskId, setTaskId] = useState<number | null>(null);
   const [file, setFile] = useState<TrialFile | null>(null);
   const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
   const [device, setDevice] = useState('');
@@ -43,6 +49,22 @@ export default function CameraTrialScreen({ onBack }: CameraTrialScreenProps) {
   const [error, setError] = useState('');
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [result, setResult] = useState<{ data: EvidenceTrialResult; durationMs: number } | null>(null);
+
+  const loadTasks = useCallback(async () => {
+    setTasksLoading(true);
+    setTasksError('');
+    try {
+      const assignedTasks = await listMyTasks(authenticatedFetch);
+      setTasks(assignedTasks);
+      setTaskId((current) => assignedTasks.some((task) => task.id === current) ? current : null);
+    } catch (caught) {
+      setTasksError(caught instanceof Error ? caught.message : 'Não foi possível carregar as tarefas.');
+    } finally {
+      setTasksLoading(false);
+    }
+  }, [authenticatedFetch]);
+
+  useEffect(() => { void loadTasks(); }, [loadTasks]);
 
   async function pick(source: Source) {
     setError('');
@@ -88,26 +110,34 @@ export default function CameraTrialScreen({ onBack }: CameraTrialScreenProps) {
 
       const asset = picked.assets[0];
       setFile(toTrialFile(asset));
-      setDurationSeconds(typeof asset.duration === 'number' ? Math.round(asset.duration / 1000) : null);
+      setDurationSeconds(typeof asset.duration === 'number' ? Math.ceil(asset.duration / 1000) : null);
     } catch {
       setError('Não foi possível abrir a câmara ou a galeria neste aparelho.');
     }
   }
 
   async function send() {
-    if (!file) return;
+    if (!file || taskId === null) return;
+    if (file.kind === 'video' && durationSeconds !== null && durationSeconds > VIDEO_MAX_SECONDS) {
+      setError(`O vídeo não pode ter mais de ${VIDEO_MAX_SECONDS} segundos.`);
+      return;
+    }
     setSending(true);
     setError('');
     setResult(null);
 
     try {
-      const { result: data, durationMs } = await uploadEvidenceTrial(file, device.trim() || null, authenticatedFetch);
+      const { result: data, durationMs } = await uploadEvidenceTrial(taskId, file, device.trim() || null, authenticatedFetch);
       setResult({ data, durationMs });
     } catch (caught) {
       if (caught instanceof AuthError && caught.code === 'SESSION_EXPIRED') {
         setError(caught.message);
       } else {
         setError(caught instanceof Error ? caught.message : 'O envio falhou.');
+        if (caught instanceof EvidenceTrialError && (caught.code === 'FORBIDDEN' || caught.code === 'NOT_FOUND')) {
+          setTaskId(null);
+          void loadTasks();
+        }
       }
     } finally {
       setSending(false);
@@ -126,19 +156,53 @@ export default function CameraTrialScreen({ onBack }: CameraTrialScreenProps) {
       <Text style={styles.title}>Câmara e envio</Text>
       <View style={styles.notice}>
         <Text style={styles.noticeText}>
-          Serve só para testar a câmara e o envio para a API. O ficheiro não fica ligado a nenhuma tarefa e não conta como prova da limpeza.
+          Ensaio de câmara e envio associado à tarefa selecionada. Não altera o estado da tarefa nem conta como prova final da limpeza.
         </Text>
       </View>
 
+      <View style={styles.card}>
+        <Text style={styles.label}>Tarefa</Text>
+        {tasksLoading && <ActivityIndicator color="#1769E8" />}
+        {!tasksLoading && tasksError !== '' && (
+          <View>
+            <Text style={styles.error}>{tasksError}</Text>
+            <Pressable accessibilityRole="button" onPress={() => void loadTasks()} style={styles.linkButton}>
+              <Text style={styles.linkText}>Tentar carregar novamente</Text>
+            </Pressable>
+          </View>
+        )}
+        {!tasksLoading && tasksError === '' && tasks.length === 0 && (
+          <Text style={styles.muted}>Não tens tarefas atribuídas disponíveis para associar ao envio.</Text>
+        )}
+        {!tasksLoading && tasksError === '' && tasks.map((task) => (
+          <Pressable
+            key={task.id}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: taskId === task.id }}
+            disabled={sending}
+            onPress={() => {
+              setTaskId(task.id);
+              setFile(null);
+              setResult(null);
+              setError('');
+            }}
+            style={[styles.taskOption, taskId === task.id && styles.taskOptionSelected]}
+          >
+            <Text style={styles.taskOptionTitle}>Tarefa #{task.id}{task.property ? ` · ${task.property}` : ''}</Text>
+            <Text style={styles.taskOptionSubtitle}>{task.type} · {task.status}</Text>
+          </Pressable>
+        ))}
+      </View>
+
       <View style={styles.buttonRow}>
-        <Pressable accessibilityRole="button" disabled={sending} onPress={() => void pick('photo')} style={({ pressed }) => [styles.secondaryButton, sending && styles.disabled, pressed && styles.pressed]}>
+        <Pressable accessibilityRole="button" disabled={sending || taskId === null || tasksLoading || tasks.length === 0} onPress={() => void pick('photo')} style={({ pressed }) => [styles.secondaryButton, (sending || taskId === null || tasksLoading || tasks.length === 0) && styles.disabled, pressed && styles.pressed]}>
           <Text style={styles.secondaryText}>Tirar fotografia</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" disabled={sending} onPress={() => void pick('video')} style={({ pressed }) => [styles.secondaryButton, sending && styles.disabled, pressed && styles.pressed]}>
+        <Pressable accessibilityRole="button" disabled={sending || taskId === null || tasksLoading || tasks.length === 0} onPress={() => void pick('video')} style={({ pressed }) => [styles.secondaryButton, (sending || taskId === null || tasksLoading || tasks.length === 0) && styles.disabled, pressed && styles.pressed]}>
           <Text style={styles.secondaryText}>Gravar vídeo</Text>
         </Pressable>
       </View>
-      <Pressable accessibilityRole="button" disabled={sending} onPress={() => void pick('library')} style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}>
+      <Pressable accessibilityRole="button" disabled={sending || taskId === null || tasksLoading || tasks.length === 0} onPress={() => void pick('library')} style={({ pressed }) => [styles.linkButton, (sending || taskId === null || tasksLoading || tasks.length === 0) && styles.disabled, pressed && styles.pressed]}>
         <Text style={styles.linkText}>Escolher da galeria</Text>
       </Pressable>
 
@@ -166,7 +230,7 @@ export default function CameraTrialScreen({ onBack }: CameraTrialScreenProps) {
             style={styles.input}
           />
 
-          <Pressable accessibilityRole="button" disabled={sending} onPress={() => void send()} style={({ pressed }) => [styles.primaryButton, sending && styles.primaryDisabled, pressed && styles.pressed]}>
+          <Pressable accessibilityRole="button" disabled={sending || taskId === null} onPress={() => void send()} style={({ pressed }) => [styles.primaryButton, (sending || taskId === null) && styles.primaryDisabled, pressed && styles.pressed]}>
             {sending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryText}>Enviar para a API</Text>}
           </Pressable>
         </View>
@@ -187,6 +251,7 @@ export default function CameraTrialScreen({ onBack }: CameraTrialScreenProps) {
           <InfoRow label="Tamanho recebido" value={formatBytes(result.data.size_bytes)} />
           <InfoRow label="Tempo de envio" value={`${(result.durationMs / 1000).toFixed(1).replace('.', ',')} s`} />
           <InfoRow label="Aparelho" value={result.data.device} />
+          <InfoRow label="Tarefa associada" value={`#${result.data.task_id}`} />
         </View>
       )}
     </ScrollView>
@@ -208,6 +273,11 @@ const styles = StyleSheet.create({
   linkButton: { alignSelf: 'center', paddingVertical: 12 },
   linkText: { color: '#53657D', fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
   card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginTop: 12, borderWidth: 1, borderColor: '#E3E9F2' },
+  taskOption: { borderWidth: 1, borderColor: '#D4DCE8', borderRadius: 12, padding: 12, marginTop: 8 },
+  taskOptionSelected: { borderColor: '#1769E8', backgroundColor: '#E7F0FF' },
+  taskOptionTitle: { color: '#26364B', fontSize: 14, fontWeight: '800' },
+  taskOptionSubtitle: { color: '#53657D', fontSize: 12, marginTop: 4 },
+  muted: { color: '#53657D', fontSize: 14, lineHeight: 20, marginTop: 8 },
   preview: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12, marginBottom: 10, backgroundColor: '#EEF2F7' },
   warning: { color: '#9A5B00', fontSize: 13, lineHeight: 19, marginTop: 10 },
   label: { color: '#8290A3', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginTop: 14 },
