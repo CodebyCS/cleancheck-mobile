@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, TextInput } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, TextInput } from 'react-native'
+import TaskImpedimentForm from '../components/TaskImpedimentForm'
+import TaskEvidenceUploader from '../components/TaskEvidenceUploader'
 import { taskDateLabel, taskStatusLabel, taskTypeLabel, TaskDetail } from '../services/tasks';
 import { useAuth } from '../auth/AuthContext';
 import { getMyTask, startMyTask, updateMyTaskNotes, completeMyTask, TaskError } from "../services/tasks";
@@ -68,9 +70,9 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
   }
 
   async function handleSaveNotes() {
-  setSavingNotes(true);
-  setActionError('');
-  setNotesMessage('');
+    setSavingNotes(true);
+    setActionError('');
+    setNotesMessage('');
 
     try {
       const notes = providerNotes.trim() === '' ? null : providerNotes;
@@ -98,8 +100,8 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
       setCompleting(false);
     }
   }
-  
-    if (accessLost) {
+
+  if (accessLost) {
     return (
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.topRow}>
@@ -174,9 +176,10 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
 
       {currentTask.status === 'in_progress' && (
         <>
-          <Text style={styles.mediaNotice}>
-            A conclusão não exige mídia. O envio de arquivos de prova ainda não está disponível na API.
-          </Text>
+          <TaskEvidenceUploader
+            taskId={currentTask.id}
+            authenticatedFetch={authenticatedFetch}
+          />
 
           <Pressable
             accessibilityRole="button"
@@ -216,6 +219,7 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
         </Pressable>
       )}
 
+      <TaskImpedimentForm taskId={task.id} />
     </ScrollView>
   );
 }
@@ -261,5 +265,4 @@ const styles = StyleSheet.create({
   actionError: {color: '#A52323', fontSize: 14, marginTop: 14},
   notesInput: { minHeight: 90, borderWidth: 1, borderColor: '#D4DCE8', borderRadius: 12, padding: 12, color: '#26364B',fontSize: 15, marginTop: 10, marginBottom: 12,},
   notesMessage: { color: '#146B3A', fontSize: 14, marginTop: 10 },
-  mediaNotice: { color: '#53657D', fontSize: 13, lineHeight: 19, marginTop: 16 },
 });
