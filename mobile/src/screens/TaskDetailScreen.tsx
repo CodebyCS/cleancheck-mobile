@@ -6,20 +6,23 @@ import { taskDateLabel, taskStatusLabel, taskTypeLabel, TaskDetail } from '../se
 import { useAuth } from '../auth/AuthContext';
 import { getMyTask, startMyTask, updateMyTaskNotes, completeMyTask, TaskError } from "../services/tasks";
 import { useAppForeground } from '../hooks/useAppForeground';
+import { useTaskNoteDraft } from '../hooks/useTaskNoteDraft';
 
 type TaskDetailScreenProps = { task: TaskDetail; onBack: () => void; backLabel?: string };
 
 export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tarefas' }: TaskDetailScreenProps) {
   const [currentTask, setCurrentTask] = useState(task);
   const alreadyCompleted = currentTask.status === 'completed';
-
-  const [providerNotes, setProviderNotes] = useState(task.provider_notes ?? '');
+  const { authenticatedFetch, session } = useAuth();
+  const draft = useTaskNoteDraft(session?.user.id, task.id, task.provider_notes);
+  const providerNotes = draft.notes;
+  // Compared without outer spaces because the API may trim the saved text.
+  const hasUnsentNotes = providerNotes.trim() !== (currentTask.provider_notes ?? '').trim();
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesMessage, setNotesMessage] = useState('');
 
   const [completing, setCompleting] = useState(false);
 
-  const { authenticatedFetch } = useAuth();
   const [starting, setStarting] = useState(false);
   const [actionError, setActionError] = useState('');
 
@@ -83,25 +86,49 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
     }
   }
 
+  function handleNotesChange(text: string) {
+    draft.change(text);
+    setNotesMessage('');
+  }
+
   async function handleSaveNotes() {
+    const sent = providerNotes;
+    const notes = sent.trim() === '' ? null : sent;
+
     setSavingNotes(true);
     setActionError('');
     setNotesMessage('');
+    draft.flush();
 
     try {
-      const notes = providerNotes.trim() === '' ? null : providerNotes;
-
       await updateMyTaskNotes(currentTask.id, notes, authenticatedFetch);
-      setCurrentTask(await getMyTask(currentTask.id, authenticatedFetch));
-      setNotesMessage('Notas guardadas.');
     } catch (error) {
       reportError(error, 'Não foi possível guardar as notas.');
+      setSavingNotes(false);
+      return;
+    }
+
+    // Confirmed by the API: the draft can go, even if the refresh below fails.
+    await draft.markSent(sent);
+    setCurrentTask((current) => ({ ...current, provider_notes: notes }));
+    setNotesMessage('Notas guardadas.');
+
+    try {
+      setCurrentTask(await getMyTask(currentTask.id, authenticatedFetch));
+    } catch (error) {
+      if (error instanceof TaskError && error.code === 'NOT_FOUND') setAccessLost(true);
     } finally {
       setSavingNotes(false);
     }
   }
 
   async function handleComplete() {
+    // After completion the API no longer accepts notes.
+    if (hasUnsentNotes) {
+      setActionError('Guarda as notas antes de concluir a tarefa.');
+      return;
+    }
+
     setCompleting(true);
     setActionError('');
 
@@ -114,6 +141,23 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
       setCompleting(false);
     }
   }
+
+  const unsentNotes = hasUnsentNotes && providerNotes.trim() !== '' && (
+    <View style={styles.stepCard}>
+      <Text style={styles.stepTitle}>Notas por enviar</Text>
+      <Text style={styles.stepDescription}>
+        Estas notas não chegaram ao servidor. Mantém o dedo no texto para as copiares antes de as descartares.
+      </Text>
+      <Text selectable style={styles.unsentText}>{providerNotes}</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => void draft.discard(currentTask.provider_notes)}
+        style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+      >
+        <Text style={styles.secondaryButtonText}>Descartar notas</Text>
+      </Pressable>
+    </View>
+  );
 
   if (accessLost) {
     return (
@@ -128,6 +172,7 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
             Esta tarefa já não está atribuída à tua conta: foi reatribuída, cancelada ou removida. Volta à lista para ver as tarefas atuais.
           </Text>
         </View>
+        {unsentNotes}
       </ScrollView>
     );
   }
@@ -166,10 +211,15 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
       {currentTask.status === 'in_progress' && (
         <View style={styles.stepCard}>
           <Text style={styles.stepTitle}>Notas do prestador</Text>
+          {draft.restored && (
+            <Text style={styles.draftMessage}>
+              Recuperámos notas que ainda não foram enviadas. Carrega em "Guardar notas" para as enviar.
+            </Text>
+          )}
           <TextInput
             accessibilityLabel="Notas do prestador"
             value={providerNotes}
-            onChangeText={setProviderNotes}
+            onChangeText={handleNotesChange}
             placeholder="Ex.: apartamento muito sujo; copo quebrado."
             multiline
             maxLength={2000}
@@ -219,6 +269,8 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
           </Pressable>
         </>
       )}
+
+      {currentTask.status !== 'in_progress' && unsentNotes}
 
       {actionError !== '' && (
         <Text style={styles.actionError}>{actionError}</Text>
@@ -288,4 +340,6 @@ const styles = StyleSheet.create({
   actionError: {color: '#A52323', fontSize: 14, marginTop: 14},
   notesInput: { minHeight: 90, borderWidth: 1, borderColor: '#D4DCE8', borderRadius: 12, padding: 12, color: '#26364B',fontSize: 15, marginTop: 10, marginBottom: 12,},
   notesMessage: { color: '#146B3A', fontSize: 14, marginTop: 10 },
+  draftMessage: { color: '#8A5700', fontSize: 13, lineHeight: 19, marginTop: 8 },
+  unsentText: { color: '#26364B', fontSize: 15, lineHeight: 21, marginBottom: 14 },
 });
