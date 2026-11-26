@@ -71,7 +71,7 @@ export default function TasksScreen({
   showProgress = true,
   showPrevious = true,
 }: TasksScreenProps) {
-  const [showCompletedOnly, setShowCompletedOnly] = useState(false);
+  const [taskFilter, setTaskFilter] = useState<'dashboard' | 'in_progress' | 'completed'>('dashboard');
   const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   useEffect(() => {
@@ -112,11 +112,18 @@ export default function TasksScreen({
       && !isToday(task.scheduled_start_at, now),
   );
   const completedToday = today.filter((task) => task.status === 'completed').length;
-  const visibleTasks = showCompletedOnly
-    ? completedTasks
-    : showPrevious
-      ? dashboardTasks
-      : [...today, ...upcoming];
+    const inProgressTasks = orderedTasks.filter(
+    (task) => task.status === 'in_progress',
+  );
+
+  const visibleTasks =
+    taskFilter === 'completed'
+      ? completedTasks
+      : taskFilter === 'in_progress'
+        ? inProgressTasks
+        : showPrevious
+          ? dashboardTasks
+          : [...today, ...upcoming];
 
   return (
     <ScrollView contentContainerStyle={styles.page} contentInsetAdjustmentBehavior="automatic">
@@ -135,27 +142,39 @@ export default function TasksScreen({
       <View style={styles.filterRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ selected: !showCompletedOnly }}
-          onPress={() => setShowCompletedOnly(false)}
-          style={[styles.filterButton, !showCompletedOnly && styles.filterButtonSelected]}
+          accessibilityState={{ selected: taskFilter === 'dashboard' }}
+          onPress={() => setTaskFilter('dashboard')}
+          style={[styles.filterButton, taskFilter === 'dashboard' && styles.filterButtonSelected]}
         >
-          <Text style={[styles.filterButtonText, !showCompletedOnly && styles.filterButtonTextSelected]}>
+          <Text style={[styles.filterButtonText, taskFilter === 'dashboard' && styles.filterButtonTextSelected]}>
             Painel
           </Text>
         </Pressable>
+
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ selected: showCompletedOnly }}
-          onPress={() => setShowCompletedOnly(true)}
-          style={[styles.filterButton, showCompletedOnly && styles.filterButtonSelected]}
+          accessibilityState={{ selected: taskFilter === 'in_progress' }}
+          onPress={() => setTaskFilter('in_progress')}
+          style={[styles.filterButton, taskFilter === 'in_progress' && styles.filterButtonSelected]}
         >
-          <Text style={[styles.filterButtonText, showCompletedOnly && styles.filterButtonTextSelected]}>
+          <Text style={[styles.filterButtonText, taskFilter === 'in_progress' && styles.filterButtonTextSelected]}>
+            Em curso ({inProgressTasks.length})
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: taskFilter === 'completed' }}
+          onPress={() => setTaskFilter('completed')}
+          style={[styles.filterButton, taskFilter === 'completed' && styles.filterButtonSelected]}
+        >
+          <Text style={[styles.filterButtonText, taskFilter === 'completed' && styles.filterButtonTextSelected]}>
             Concluídas ({completedTasks.length})
           </Text>
         </Pressable>
       </View>
 
-      {showProgress && !showCompletedOnly && (
+      {showProgress && taskFilter === 'dashboard' && (
         <View style={styles.progressCard}>
           <Text style={styles.progressLabel}>Progresso de hoje</Text>
           <Text style={styles.progressValue}>{completedToday}/{today.length}</Text>
@@ -173,10 +192,17 @@ export default function TasksScreen({
       ) : (
         <>
           {error && <Text style={[styles.error, styles.banner]} accessibilityLiveRegion="polite">{error}</Text>}
-          {showCompletedOnly ? (
+          {taskFilter === 'completed' ? (
             <>
               <Text style={styles.sectionTitle}>Concluídas</Text>
               {completedTasks.map((task) => (
+                <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />
+              ))}
+            </>
+          ) : taskFilter === 'in_progress' ? (
+            <>
+              <Text style={styles.sectionTitle}>Em curso</Text>
+              {inProgressTasks.map((task) => (
                 <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />
               ))}
             </>
