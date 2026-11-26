@@ -7,6 +7,9 @@ export type TaskListItem = {
   property: string | null;
   type: string;
   scheduled_start_at: string;
+  scheduled_end_at: string | null;
+  completed_at: string | null;
+  missing_evidence: boolean;
   status: string;
 };
 
@@ -98,6 +101,9 @@ function isTaskListItem(value: unknown): value is TaskListItem {
     && typeof value.type === 'string'
     && typeof value.scheduled_start_at === 'string'
     && !Number.isNaN(Date.parse(value.scheduled_start_at))
+    && isNullableString(value.scheduled_end_at)
+    && isNullableString(value.completed_at)
+    && typeof value.missing_evidence === 'boolean'
     && typeof value.status === 'string';
 }
 
