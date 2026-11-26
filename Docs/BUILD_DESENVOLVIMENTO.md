@@ -59,9 +59,36 @@ npx.cmd eas-cli build --platform android --profile development
 
 A build autónoma precisa de `EXPO_PUBLIC_API_URL` e `EXPO_PUBLIC_API_HEALTH_URL` configuradas no ambiente `preview` do projeto EAS. Usa um endereço da API de teste acessível a partir do dispositivo; `localhost` e o `.env.local` do computador do autor não ficam disponíveis no telemóvel do colega. Estas variáveis são incorporadas na app e não podem conter segredos.
 
+Para o ambiente partilhado, o EAS `preview` está configurado com:
+
+- `EXPO_PUBLIC_API_URL=https://api.cleancheck.atec-porto.eu/api`
+- `EXPO_PUBLIC_API_HEALTH_URL=https://api.cleancheck.atec-porto.eu/api/health`
+
+O perfil `preview` gera um APK interno instalável e usa explicitamente o ambiente
+EAS `preview`. Depois de alterar estas variáveis, é necessário gerar uma nova
+build e instalar essa versão; uma build já instalada mantém as URLs anteriores.
+
 ## Estado da validação
 
-A configuração EAS para Android está preparada e foi gerado um build `preview`. Ainda falta a instalação e o teste funcional por um colega num dispositivo Android. A validação iOS não faz parte deste ensaio e requer credenciais Apple e um iPhone registado.
+A configuração EAS para Android está preparada para uma build `preview` autónoma
+ligada à API partilhada. A validação do ponto 2 da issue #17 foi feita em
+23/11/2026 no Android Emulator `Medium_Phone_API_37.0:5554` (Android 17 / API 37):
+
+- Build interna APK `preview`, ID
+  `7d758267-0b34-4f56-9939-175a9e59a499`, [abrir no EAS](https://expo.dev/accounts/pedroatec/projects/cleancheck-mobile/builds/7d758267-0b34-4f56-9939-175a9e59a499).
+- Instalada e aberta pelo EAS `build:run`, sem Expo Go nem sessão Metro. O processo
+  `com.codebycs.cleancheck` iniciou o bundle React Native.
+- O APK foi compilado com o ambiente EAS `preview`, cujas URLs apontam para
+  `https://api.cleancheck.atec-porto.eu/api`; o endpoint de diagnóstico da API
+  respondeu HTTP 200 (`{"application":"CleanCheck","status":"ok"}`).
+
+Isto confirma que a build Android instalável foi aberta sem Expo Go nem sessão
+Metro e ligada à API partilhada. A instalação e o ensaio independente por outro
+colega num aparelho Android físico ainda não estão registados; mantêm-se como
+validação pendente se forem exigidos pela checklist da equipa. O APK anterior
+`preview-local` usa a API local e não deve ser usado para validar o ambiente
+partilhado. A validação iOS não faz parte deste ensaio e requer credenciais
+Apple e um iPhone registado.
 
 ## Teste local no emulador Android
 
@@ -114,9 +141,9 @@ Resultados observados na app instalada:
 
 Limitações: não havia avisos reais na base local para testar a abertura de uma
 tarefa a partir de um aviso. Esse percurso pertence à demonstração integrada da
-issue #18 e exige dados de teste apropriados. O emulador está no computador do
-autor e o endereço `10.0.2.2` só funciona nele; instalação por outro colega
-num Android físico e ligação ao ambiente partilhado continuam pendentes no
-segundo ponto da issue #17. Responsável: Pedro/equipa, após disponibilização
-da API alojada. Quando existir a URL HTTPS, gerar uma build `preview` e repetir
-os testes de ligação e percursos essenciais nesse ambiente.
+issue #18 e exige dados de teste apropriados. Os resultados desta secção usam a
+API local (`10.0.2.2`) e não validam o ambiente partilhado. A build `preview`
+autónoma ligada à API alojada foi validada separadamente no emulador, conforme
+registado acima. A instalação independente por outro colega num Android físico
+continua por registar para o segundo ponto da issue #17. O endereço `10.0.2.2`
+é exclusivo do emulador local e não deve ser usado por outro aparelho.

@@ -1,6 +1,8 @@
 import { apiUrl, AuthError } from './auth';
+import { File } from 'expo-file-system';
 
-// Trial only: tests the camera and the upload to the API. Not linked to any task.
+// Experimental upload associated with a currently assigned task. It is not the
+// final evidence workflow and does not change the task status.
 
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -17,6 +19,8 @@ export type TrialFile = {
 };
 
 export type EvidenceTrialResult = {
+  id: number;
+  task_id: number;
   kind: 'photo' | 'video';
   mime_type: string;
   size_bytes: number;
@@ -29,6 +33,7 @@ export type EvidenceTrialErrorCode =
   | 'VALIDATION'
   | 'TOO_LARGE'
   | 'FORBIDDEN'
+  | 'NOT_FOUND'
   | 'TOO_MANY_REQUESTS'
   | 'TIMEOUT'
   | 'NETWORK'
@@ -50,6 +55,8 @@ function isResult(value: unknown): value is EvidenceTrialResult {
   const device = Reflect.get(value, 'device');
 
   return (kind === 'photo' || kind === 'video')
+    && Number.isInteger(Reflect.get(value, 'id'))
+    && Number.isInteger(Reflect.get(value, 'task_id'))
     && typeof Reflect.get(value, 'mime_type') === 'string'
     && typeof Reflect.get(value, 'size_bytes') === 'number'
     && typeof Reflect.get(value, 'original_name') === 'string'
@@ -81,17 +88,20 @@ export function exceedsLimit(file: TrialFile): boolean {
 }
 
 /**
- * Sends one file to POST /api/evidence-trials and returns the API answer and the
- * time the upload took, so both can be written down in the trial results.
+ * Sends one file to the task-bound trial upload endpoint and returns the API
+ * answer and upload duration for the trial record.
  */
 export async function uploadEvidenceTrial(
+  taskId: number,
   file: TrialFile,
   device: string | null,
   authenticatedFetch: AuthenticatedFetch,
 ): Promise<{ result: EvidenceTrialResult; durationMs: number }> {
   const form = new FormData();
-  // React Native accepts { uri, name, type } as a file part.
-  form.append('file', { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
+  // Expo File + expo/fetch streams native file URIs rather than materializing
+  // the entire video through React Native's FormData bridge.
+  const uploadFile = new File(file.uri);
+  form.append('file', uploadFile, file.name);
   if (device) form.append('device', device);
 
   const controller = new AbortController();
@@ -102,7 +112,7 @@ export async function uploadEvidenceTrial(
 
   try {
     // Content-Type is left out so fetch adds the multipart boundary.
-    response = await authenticatedFetch(apiUrl('/evidence-trials'), { method: 'POST', body: form, signal: controller.signal });
+    response = await authenticatedFetch(apiUrl(`/my/tasks/${taskId}/evidence-trials`), { method: 'POST', body: form, signal: controller.signal });
   } catch (error) {
     if (error instanceof AuthError) throw error;
     if (timedOut) {
@@ -123,12 +133,18 @@ export async function uploadEvidenceTrial(
     throw new EvidenceTrialError('TOO_LARGE', 'O servidor recusou o ficheiro por ser demasiado grande (limite do PHP ou do servidor web).', 413);
   }
   if (response.status === 403) {
-    throw new EvidenceTrialError('FORBIDDEN', 'Só contas de prestador podem fazer o ensaio de envio.', 403);
+    throw new EvidenceTrialError('FORBIDDEN', 'Esta tarefa não está atribuída à tua conta.', 403);
+  }
+  if (response.status === 404) {
+    throw new EvidenceTrialError('NOT_FOUND', 'A tarefa já não está disponível. Atualiza a lista e escolhe outra.', 404);
   }
   if (response.status === 429) {
     throw new EvidenceTrialError('TOO_MANY_REQUESTS', 'Demasiados envios seguidos. Espera um minuto e tenta outra vez.', 429);
   }
-  if (!response.ok) {
+  // The trial contract confirms HTTP 201 for a newly received file. Treat any
+  // other status (including an unexpected 200) as unconfirmed, so the UI never
+  // reports a successful upload without the API's documented confirmation.
+  if (response.status !== 201) {
     throw new EvidenceTrialError('SERVER', `A API respondeu com erro ${response.status}.`, response.status);
   }
 
