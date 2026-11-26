@@ -27,6 +27,8 @@ export type BookingNotice = {
   property: { id: number; name: string };
   // scheduledStart/End: task window at the time of the notice (task notices only).
   task: { id: number; available: boolean; scheduledStart?: string | null; scheduledEnd?: string | null } | null;
+  // Context saved when the notice was created; absent while the API does not send it.
+  change?: { taskStatus?: string | null; executionPreserved?: boolean; action?: string | null } | null;
 };
 
 export type BookingNoticePage = {
@@ -58,6 +60,17 @@ function isOptionalText(value: unknown): boolean {
   return value === undefined || value === null || typeof value === 'string';
 }
 
+// An unknown action is accepted on purpose: it hides the hint instead of failing the whole list.
+function isOptionalChange(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value !== 'object') return false;
+
+  const change = value as Record<string, unknown>;
+  return isOptionalText(change.taskStatus)
+    && isOptionalText(change.action)
+    && (change.executionPreserved === undefined || typeof change.executionPreserved === 'boolean');
+}
+
 function isNotice(value: unknown): value is BookingNotice {
   if (!value || typeof value !== 'object') return false;
   const notice = value as Record<string, unknown>;
@@ -74,7 +87,8 @@ function isNotice(value: unknown): value is BookingNotice {
     && typeof booking.status === 'string' && typeof booking.checkIn === 'string' && typeof booking.checkOut === 'string'
     && property && Number.isInteger(property.id) && typeof property.id === 'number' && typeof property.name === 'string'
     && (task === null || (Number.isInteger(task.id) && typeof task.id === 'number' && typeof task.available === 'boolean'
-      && isOptionalText(task.scheduledStart) && isOptionalText(task.scheduledEnd))));
+      && isOptionalText(task.scheduledStart) && isOptionalText(task.scheduledEnd)))
+    && isOptionalChange(notice.change));
 }
 
 // Shared by the list and the "mark as read" requests.
