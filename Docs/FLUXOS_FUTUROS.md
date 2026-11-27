@@ -4,6 +4,8 @@ Define os ecrãs, as ações, os dados, as validações e os erros dos fluxos qu
 
 **Estado:** a checklist e a vistoria seguem o protótipo do Figma combinado com o Pedro. O que está marcado **(a confirmar)** ainda não foi decidido.
 
+**Atualização Sprint 6:** a integração mobile atual de execução, upload e vistoria de saída está descrita em [contratos/upload-videos.md](./contratos/upload-videos.md). Os rótulos abaixo são referência do protótipo; a API aceita respostas genéricas `key`/`value` e não mantém um catálogo oficial destes itens.
+
 ## Componentes partilhados
 
 | Componente | Uso atual | Uso previsto |
