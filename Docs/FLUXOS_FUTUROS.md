@@ -29,17 +29,17 @@ Regras do Perfil, já em uso:
 
 Estados da tarefa na API: `pending`, depois `in_progress`, depois `completed` (ou `cancelled`). O prestador inicia e conclui com `POST /api/my/tasks/{task}/start` e `POST /api/my/tasks/{task}/complete`, e guarda notas com `PATCH /api/my/tasks/{task}/notes`.
 
-## 1. Checklist da limpeza
+## 1. Checklist da tarefa
 
 **Ecrã:** passo do detalhe da tarefa, depois de **Iniciar** (no Figma, separador "Checklist" do detalhe da tarefa).
 
 | | |
 |---|---|
-| **Ações** | Marcar/desmarcar cada item; ver o contador (ex.: 3/10); escrever observações adicionais (anomalias, danos, itens em falta) |
-| **Itens (Figma)** | Cama(s) refeita(s) com roupa limpa; Casa de banho limpa e desinfetada; Cozinha limpa, louça guardada; Chão aspirado e lavado; Janelas e superfícies limpas; Eletrodomésticos limpos; Lixo retirado e sacos novos colocados; Amenities reabastecidos (sabão, champô, papel); Toalhas trocadas e dobradas; Cofre/chave verificado e funcional |
-| **Dados** | Por item: `label`, `done`. Na tarefa: observações da checklist **(endpoint a criar)** |
-| **Validações** | Só a tarefa `in_progress` e atribuída ao prestador pode ser alterada; todos os itens marcados antes de concluir; observações até 2000 caracteres **(a confirmar)** |
-| **Erros** | `403`/`404` tarefa já não atribuída: mensagem e voltar à lista; `422` itens em falta: assinalar os itens; sem rede: manter as marcações no dispositivo e reenviar |
+| **Ações** | Carregar e apresentar a versão da checklist associada à tarefa; marcar/desmarcar itens; mostrar o progresso obrigatório; escrever observações da execução |
+| **Fonte dos itens** | Os rótulos e IDs vêm de `GET /api/my/tasks/{task}/checklist`; os rótulos do protótipo Figma eram apenas referência e já não são uma lista fixa da app |
+| **Dados** | A API persiste cada resposta com `PATCH /api/my/tasks/{task}/checklist/items/{itemId}` (`done: true/false`). Observações seguem em `POST /api/my/tasks/{task}/executions` |
+| **Validações** | Só a tarefa atualmente atribuída e `in_progress` pode ter itens alterados. A API não exige checklist completa para concluir; observações até 5000 caracteres |
+| **Erros** | `403`/`404`: acesso ou tarefa indisponível; `422`: item inválido ou tarefa fora de curso; falha de rede: repetir o mesmo valor pretendido e atualizar pelo resultado da API |
 
 ## 2. Evidências (vídeo e fotografias)
 

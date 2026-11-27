@@ -18,7 +18,9 @@ O upload binário, por si só, não fica ligado a uma fase. Uma prova enviada se
 
 ## Checklist e observações
 
-O mobile apresenta os dez itens de checklist registados em [FLUXOS_FUTUROS.md](../FLUXOS_FUTUROS.md). Envia cada rótulo documentado como `responses[].key` e o estado marcado como booleano `responses[].value`; observações são enviadas em `observations` (máximo 5000 caracteres). A API aceita pares `key`/`value`, mas não fornece catálogo de checklist nem valida estes rótulos. A lista e a equivalência entre rótulo e chave são convenções do cliente, não catálogo persistido/gerido pela API.
+O mobile obtém a checklist ligada à tarefa através de `GET /api/my/tasks/{task}/checklist`. Usa os IDs e rótulos devolvidos pela versão atribuída à tarefa; apresenta nome, versão, itens, obrigatoriedade e progresso. Quando não há checklist, a API devolve `200` com `{ "data": null }`. Para alterar um item, envia `PATCH /api/my/tasks/{task}/checklist/items/{itemId}` com `{ "done": true }` ou `{ "done": false }`. A API devolve a checklist atualizada. A marcação só é permitida enquanto a tarefa está em curso; `404` representa tarefa/item sem acesso ou inexistente e `422` inclui dados inválidos ou tarefa fora de curso. A consulta e a escrita usam autenticação e o endpoint do prestador só permite tarefas atualmente atribuídas a esse prestador.
+
+As respostas da checklist são guardadas pela API por item e não são repetidas em `responses[]` da execução. As observações continuam em `observations` (máximo 5000 caracteres) no pedido de execução. Se a alteração do item falhar ou a resposta se perder, o mobile mantém o valor pretendido e permite repetir o mesmo `PATCH`; o valor explícito `done` torna o retry idempotente. O estado mostrado após sucesso vem da checklist completa devolvida pela API.
 
 ## Vistoria de saída
 

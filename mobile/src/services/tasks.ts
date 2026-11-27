@@ -286,6 +286,124 @@ export type TaskExecutionRecord = TaskExecutionSubmission & {
   recorded_at?: string | null;
 };
 
+export type TaskChecklistItem = {
+  id: number;
+  position: number;
+  label: string;
+  required: boolean;
+  done: boolean;
+  done_at: string | null;
+  done_by: { id: number; name: string } | null;
+};
+
+export type TaskChecklist = {
+  task_id: number;
+  checklist_template_id: number;
+  name: string;
+  version: number;
+  required_total: number;
+  required_done: number;
+  completed: boolean;
+  items: TaskChecklistItem[];
+};
+
+export class TaskChecklistError extends Error {
+  constructor(
+    public readonly code: 'CONFIGURATION' | 'NETWORK' | 'SESSION_EXPIRED' | 'FORBIDDEN' | 'NOT_FOUND' | 'VALIDATION' | 'SERVER' | 'INVALID_RESPONSE',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'TaskChecklistError';
+  }
+}
+
+function isTaskChecklistItem(value: unknown): value is TaskChecklistItem {
+  if (!isRecord(value)) return false;
+  const doneBy = value.done_by;
+  return Number.isInteger(value.id) && Number.isInteger(value.position)
+    && typeof value.label === 'string' && typeof value.required === 'boolean'
+    && typeof value.done === 'boolean'
+    && (value.done_at === null || typeof value.done_at === 'string')
+    && (doneBy === null || (isRecord(doneBy) && Number.isInteger(doneBy.id) && typeof doneBy.name === 'string'));
+}
+
+function isTaskChecklist(value: unknown, taskId: number): value is TaskChecklist {
+  return isRecord(value) && value.task_id === taskId
+    && Number.isInteger(value.checklist_template_id) && typeof value.name === 'string'
+    && Number.isInteger(value.version) && Number.isInteger(value.required_total)
+    && Number.isInteger(value.required_done) && typeof value.completed === 'boolean'
+    && Array.isArray(value.items) && value.items.every(isTaskChecklistItem);
+}
+
+async function checklistResponse(response: Response, taskId: number): Promise<TaskChecklist | null> {
+  let payload: unknown = null;
+  try { payload = await response.json() as unknown; } catch { /* handled below */ }
+  const apiMessage = isRecord(payload) && typeof payload.message === 'string' ? payload.message : '';
+  if (response.status === 401) throw new TaskChecklistError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+  if (response.status === 403) throw new TaskChecklistError('FORBIDDEN', apiMessage || 'Já não tens acesso atual a esta tarefa.');
+  if (response.status === 404) throw new TaskChecklistError('NOT_FOUND', apiMessage || 'Esta tarefa ou checklist já não está disponível.');
+  if (response.status === 422) throw new TaskChecklistError('VALIDATION', apiMessage || 'A API rejeitou a alteração da checklist.');
+  if (!response.ok) throw new TaskChecklistError('SERVER', apiMessage || 'Não foi possível guardar a checklist. Tenta novamente.');
+  if (!isRecord(payload) || !('data' in payload)) {
+    throw new TaskChecklistError('INVALID_RESPONSE', 'A API devolveu uma checklist inválida.');
+  }
+  if (payload.data === null) return null;
+  if (!isTaskChecklist(payload.data, taskId)) {
+    throw new TaskChecklistError('INVALID_RESPONSE', 'A API devolveu uma checklist inválida.');
+  }
+  return payload.data;
+}
+
+async function checklistRequest(
+  taskId: number,
+  path: string,
+  authenticatedFetch: AuthenticatedFetch,
+  init: RequestInit = {},
+): Promise<TaskChecklist | null> {
+  let url: string;
+  try { url = apiUrl(path); }
+  catch { throw new TaskChecklistError('CONFIGURATION', 'O endereço da API não está configurado.'); }
+
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url, init, authenticatedFetch);
+  } catch (error) {
+    if (error instanceof AuthError && error.code === 'SESSION_EXPIRED') {
+      throw new TaskChecklistError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+    }
+    if (error instanceof AuthError && error.code === 'FORBIDDEN') {
+      throw new TaskChecklistError('FORBIDDEN', 'Já não tens acesso atual a esta tarefa.');
+    }
+    if (error instanceof HttpClientError && error.code === 'CONFIGURATION') {
+      throw new TaskChecklistError('CONFIGURATION', 'O endereço da API não está configurado.');
+    }
+    throw new TaskChecklistError('NETWORK', 'Não foi possível confirmar a checklist. Verifica a ligação e tenta novamente.');
+  }
+  return checklistResponse(response, taskId);
+}
+
+export function getMyTaskChecklist(
+  taskId: number,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<TaskChecklist | null> {
+  return checklistRequest(taskId, `/my/tasks/${taskId}/checklist`, authenticatedFetch, {
+    headers: { Accept: 'application/json' },
+  });
+}
+
+export function markMyTaskChecklistItem(
+  taskId: number,
+  itemId: number,
+  done: boolean,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<TaskChecklist | null> {
+  return checklistRequest(taskId, `/my/tasks/${taskId}/checklist/items/${itemId}`, authenticatedFetch, {
+    method: 'PATCH',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ done }),
+  });
+}
+
 export class TaskExecutionError extends Error {
   constructor(
     public readonly code: 'CONFIGURATION' | 'NETWORK' | 'SESSION_EXPIRED' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT' | 'VALIDATION' | 'SERVER' | 'INVALID_RESPONSE',

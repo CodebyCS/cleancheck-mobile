@@ -224,12 +224,14 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
         </View>
       )}
 
-      {currentTask.status === 'in_progress' && currentTask.type === 'checkout_cleaning' && (
+      {currentTask.status === 'in_progress' && ['checkout_cleaning', 'checkin_inspection'].includes(currentTask.type) && (
         <>
           <TaskExecutionWorkflow
             taskId={currentTask.id}
             userId={session?.user.id ?? ''}
             authenticatedFetch={authenticatedFetch}
+            taskStatus={currentTask.status}
+            taskType={currentTask.type}
             checkoutCleaning={currentTask.type === 'checkout_cleaning'}
           />
 
@@ -250,11 +252,13 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
         </>
       )}
 
-      {currentTask.status === 'completed' && currentTask.type === 'checkout_cleaning' && (
+      {currentTask.status === 'completed' && ['checkout_cleaning', 'checkin_inspection'].includes(currentTask.type) && (
         <TaskExecutionWorkflow
           taskId={currentTask.id}
           userId={session?.user.id ?? ''}
           authenticatedFetch={authenticatedFetch}
+          taskStatus={currentTask.status}
+          taskType={currentTask.type}
           checkoutCleaning={currentTask.type === 'checkout_cleaning'}
         />
       )}

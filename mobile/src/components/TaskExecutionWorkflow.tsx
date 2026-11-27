@@ -6,9 +6,14 @@ import {
   submitMyTaskCheckoutInspection,
   submitMyTaskExecution,
   getMyTaskCheckoutInspection,
+  getMyTaskChecklist,
   listMyTaskExecutions,
+  markMyTaskChecklistItem,
+  TaskChecklistError,
   TaskExecutionError,
   type AuthenticatedFetch,
+  type TaskChecklist,
+  type TaskChecklistItem,
   type TaskExecutionSubmission,
 } from '../services/tasks'
 import {
@@ -20,27 +25,18 @@ import {
   type TaskExecutionKind,
 } from '../services/pendingTaskExecutions'
 
-const CHECKLIST_ITEMS = [
-  'Cama(s) refeita(s) com roupa limpa',
-  'Casa de banho limpa e desinfetada',
-  'Cozinha limpa, louça guardada',
-  'Chão aspirado e lavado',
-  'Janelas e superfícies limpas',
-  'Eletrodomésticos limpos',
-  'Lixo retirado e sacos novos colocados',
-  'Amenities reabastecidos (sabão, champô, papel)',
-  'Toalhas trocadas e dobradas',
-  'Cofre/chave verificado e funcional',
-]
-
-type Props = { taskId: number; userId: number | string; authenticatedFetch: AuthenticatedFetch; checkoutCleaning: boolean }
+type Props = { taskId: number; userId: number | string; authenticatedFetch: AuthenticatedFetch; taskStatus: string; taskType: string; checkoutCleaning: boolean }
 
 function makeSubmission(responses: TaskExecutionSubmission['responses'], observations: string | null, evidenceIds: number[]): TaskExecutionSubmission {
   return { idempotency_key: createIdempotencyKey(), responses, observations, evidence_ids: evidenceIds }
 }
 
-export default function TaskExecutionWorkflow({ taskId, userId, authenticatedFetch, checkoutCleaning }: Props) {
-  const [checked, setChecked] = useState<Record<string, boolean>>({})
+export default function TaskExecutionWorkflow({ taskId, userId, authenticatedFetch, taskStatus, taskType, checkoutCleaning }: Props) {
+  const [checklist, setChecklist] = useState<TaskChecklist | null>(null)
+  const [checklistLoading, setChecklistLoading] = useState(true)
+  const [checklistError, setChecklistError] = useState('')
+  const [checklistPending, setChecklistPending] = useState<{ itemId: number; done: boolean } | null>(null)
+  const [savingChecklistItemId, setSavingChecklistItemId] = useState<number | null>(null)
   const [observations, setObservations] = useState('')
   const [beforeEvidence, setBeforeEvidence] = useState<number[]>([])
   const [afterEvidence, setAfterEvidence] = useState<number[]>([])
@@ -87,11 +83,6 @@ export default function TaskExecutionWorkflow({ taskId, userId, authenticatedFet
       const next = { execution: execution ?? undefined, 'checkout-inspection': restoredCheckout }
       if (execution) {
         setObservations(execution.submission.observations ?? '')
-        const restored: Record<string, boolean> = {}
-        for (const response of execution.submission.responses) {
-          if (typeof response.value === 'boolean') restored[response.key] = response.value
-        }
-        setChecked(restored)
         setBeforeEvidence(execution.submission.evidence_ids)
       }
       setPending(next)
@@ -147,10 +138,65 @@ export default function TaskExecutionWorkflow({ taskId, userId, authenticatedFet
     return () => { mounted = false }
   }, [taskId, userId, checkoutCleaning, authenticatedFetch])
 
-  function toggleItem(label: string) {
-    if (pending.execution || sending) return
-    setChecked((current) => ({ ...current, [label]: !current[label] }))
-    setMessage('')
+  useEffect(() => {
+    let mounted = true
+    setChecklistLoading(true)
+    setChecklistError('')
+    setChecklist(null)
+    setChecklistPending(null)
+    void getMyTaskChecklist(taskId, authenticatedFetch).then((result) => {
+      if (!mounted) return
+      setChecklist(result)
+    }).catch((loadError) => {
+      if (!mounted) return
+      setChecklistError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar a checklist.')
+    }).finally(() => {
+      if (mounted) setChecklistLoading(false)
+    })
+    return () => { mounted = false }
+  }, [taskId, authenticatedFetch])
+
+  async function refreshChecklist() {
+    setChecklistLoading(true)
+    setChecklistError('')
+    try {
+      const result = await getMyTaskChecklist(taskId, authenticatedFetch)
+      setChecklist(result)
+    } catch (loadError) {
+      setChecklistError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar a checklist.')
+    } finally {
+      setChecklistLoading(false)
+    }
+  }
+
+  async function saveChecklistItem(itemId: number, done: boolean) {
+    if (taskStatus !== 'in_progress' || savingChecklistItemId !== null) return
+    setSavingChecklistItemId(itemId)
+    setChecklistError('')
+    try {
+      const updated = await markMyTaskChecklistItem(taskId, itemId, done, authenticatedFetch)
+      if (updated === null) throw new TaskChecklistError('INVALID_RESPONSE', 'A API não devolveu a checklist atualizada.')
+      setChecklist(updated)
+      setChecklistPending(null)
+    } catch (saveError) {
+      // The server may have saved the requested value even if its response was
+      // lost. Keep that exact value and offer an identical, idempotent retry.
+      const resultUnknown = saveError instanceof TaskChecklistError
+        && ['NETWORK', 'SERVER', 'INVALID_RESPONSE'].includes(saveError.code)
+      setChecklistPending(resultUnknown ? { itemId, done } : null)
+      setChecklistError(saveError instanceof Error ? saveError.message : 'Não foi possível confirmar a alteração da checklist.')
+    } finally {
+      setSavingChecklistItemId(null)
+    }
+  }
+
+  function toggleItem(item: TaskChecklistItem) {
+    if (taskStatus !== 'in_progress' || savingChecklistItemId !== null) return
+    if (checklistPending) {
+      if (checklistPending.itemId === item.id) void saveChecklistItem(checklistPending.itemId, checklistPending.done)
+      return
+    }
+    void saveChecklistItem(item.id, !item.done)
   }
 
   async function send(kind: TaskExecutionKind) {
@@ -166,7 +212,7 @@ export default function TaskExecutionWorkflow({ taskId, userId, authenticatedFet
       let saved = pending[kind]
       if (!saved) {
         const submission = kind === 'execution'
-          ? makeSubmission(CHECKLIST_ITEMS.map((key) => ({ key, value: checked[key] === true })), observations.trim() || null, beforeEvidence)
+          ? makeSubmission([], observations.trim() || null, beforeEvidence)
           : makeSubmission([], null, afterEvidence)
         saved = { taskId, userId, kind, submission }
         await savePendingTaskExecution(saved)
@@ -208,24 +254,41 @@ export default function TaskExecutionWorkflow({ taskId, userId, authenticatedFet
   return (
     <View style={styles.card}>
       <Text style={styles.title}>Checklist e provas</Text>
-      <Text style={styles.copy}>As respostas usam os itens documentados no protótipo. A API guarda cada item como uma resposta key/value e não define um catálogo próprio.</Text>
-      <Text style={styles.section}>Antes da limpeza</Text>
-      <TaskEvidenceUploader taskId={taskId} authenticatedFetch={authenticatedFetch} phaseLabel="Prova anterior" disabled={executionPending || executionSaved} onUploaded={(evidence) => {
+      <Text style={styles.copy}>A checklist e o progresso são carregados e guardados pela API para esta tarefa.</Text>
+      <Text style={styles.section}>{taskType === 'checkin_inspection' ? 'Prova da inspeção' : 'Antes da limpeza'}</Text>
+      <TaskEvidenceUploader taskId={taskId} authenticatedFetch={authenticatedFetch} phaseLabel={taskType === 'checkin_inspection' ? 'Prova da inspeção' : 'Prova anterior'} disabled={executionPending || executionSaved} onUploaded={(evidence) => {
         setBeforeEvidence((current) => current.includes(evidence.id) ? current : [...current, evidence.id])
       }} />
       {beforeEvidence.length > 0 && <Text style={styles.copy}>{beforeEvidence.length === 1 ? '1 ficheiro confirmado para associar.' : `${beforeEvidence.length} ficheiros confirmados para associar.`}</Text>}
 
-      <Text style={styles.section}>Checklist da limpeza</Text>
-      {CHECKLIST_ITEMS.map((item) => (
-        <Pressable key={item} accessibilityRole="checkbox" accessibilityState={{ checked: checked[item] === true, disabled: executionPending || executionSaved || sending !== null }} disabled={executionPending || executionSaved || sending !== null} onPress={() => toggleItem(item)} style={styles.checkRow}>
-          <Text style={styles.checkbox}>{checked[item] ? '☑' : '☐'}</Text><Text style={styles.item}>{item}</Text>
-        </Pressable>
-      ))}
+      <Text style={styles.section}>{taskType === 'checkin_inspection' ? 'Checklist da inspeção' : 'Checklist da tarefa'}</Text>
+      {checklistLoading
+        ? <View style={styles.inlineState}><ActivityIndicator color="#1769E8" /><Text style={styles.copy}>A carregar checklist da tarefa...</Text></View>
+        : checklistError !== '' && checklist === null
+          ? <View style={styles.inlineState}><Text accessibilityRole="alert" style={styles.error}>{checklistError}</Text><Pressable accessibilityRole="button" onPress={() => void refreshChecklist()} style={styles.retryButton}><Text style={styles.retryText}>Tentar carregar novamente</Text></Pressable></View>
+          : checklist === null
+            ? <Text style={styles.copy}>Ainda não existe uma checklist configurada para esta tarefa.</Text>
+            : <>
+              <Text style={styles.copy}>{checklist.name} · versão {checklist.version} · {checklist.required_done}/{checklist.required_total} itens obrigatórios concluídos (* obrigatório)</Text>
+              {checklistPending && <Text style={styles.pending}>A alteração ainda não foi confirmada. Toca no mesmo item para repetir exatamente o mesmo valor.</Text>}
+              {checklistError !== '' && <Text accessibilityRole="alert" style={styles.error}>{checklistError}</Text>}
+              {checklist.items.map((item) => {
+                const canEdit = taskStatus === 'in_progress'
+                const retryingThis = checklistPending?.itemId === item.id
+                const disabled = !canEdit || savingChecklistItemId !== null || (checklistPending !== null && !retryingThis)
+                return <Pressable key={item.id} accessibilityRole="checkbox" accessibilityState={{ checked: item.done, disabled }} disabled={disabled} onPress={() => toggleItem(item)} style={styles.checkRow}>
+                  <Text style={styles.checkbox}>{savingChecklistItemId === item.id ? '…' : item.done ? '☑' : '☐'}</Text>
+                  <Text style={styles.item}>{item.label}{item.required ? ' *' : ''}</Text>
+                  {retryingThis && <Text style={styles.retryText}>Repetir</Text>}
+                </Pressable>
+              })}
+              {taskStatus !== 'in_progress' && <Text style={styles.copy}>A checklist fica só para consulta quando a tarefa não está em curso.</Text>}
+            </>}
       <TextInput accessibilityLabel="Observações da execução" value={observations} onChangeText={setObservations} editable={!executionPending && !executionSaved && sending === null} maxLength={5000} multiline textAlignVertical="top" placeholder="Observações (opcional)" style={styles.input} />
       {executionPending && <Text style={styles.pending}>Existe uma execução por confirmar. O retry usa exatamente as mesmas respostas, evidências e chave.</Text>}
       {executionSaved
         ? <><Text style={styles.success}>Execução confirmada pela API.</Text><Pressable accessibilityRole="button" onPress={() => {
-          setSavedExecutionId(null); setChecked({}); setObservations(''); setBeforeEvidence([]); setMessage('')
+          setSavedExecutionId(null); setObservations(''); setBeforeEvidence([]); setMessage('')
         }} style={styles.button}><Text style={styles.buttonText}>Iniciar nova execução</Text></Pressable></>
         : <Pressable accessibilityRole="button" disabled={sending !== null || recoveryUnavailable || (!executionPending && !executionStatusKnown)} onPress={() => void send('execution')} style={[styles.button, (sending !== null || recoveryUnavailable || (!executionPending && !executionStatusKnown)) && styles.disabled]}>
           <Text style={styles.buttonText}>{sending === 'execution' ? 'A enviar...' : executionPending ? 'Tentar novamente' : 'Guardar execução'}</Text>
@@ -256,6 +319,7 @@ const styles = StyleSheet.create({
   title: { color: '#172B4D', fontSize: 18, fontWeight: '800' },
   section: { color: '#53657D', fontSize: 13, fontWeight: '800', marginTop: 10 },
   copy: { color: '#53657D', fontSize: 13, lineHeight: 19 },
+  inlineState: { gap: 10, alignItems: 'flex-start' },
   checkRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 5 },
   checkbox: { color: '#1769E8', fontSize: 22, width: 28 },
   item: { flex: 1, color: '#26364B', fontSize: 14, lineHeight: 19 },
@@ -263,6 +327,8 @@ const styles = StyleSheet.create({
   pending: { color: '#8A5700', backgroundColor: '#FFF5D9', borderRadius: 10, padding: 10, fontSize: 13, lineHeight: 19 },
   button: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#1769E8', paddingHorizontal: 12 },
   disabled: { opacity: 0.55 },
+  retryButton: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#1769E8' },
+  retryText: { color: '#1769E8', fontSize: 12, fontWeight: '700' },
   buttonText: { color: '#FFF', fontWeight: '800', textAlign: 'center' },
   success: { color: '#146B3A', fontSize: 14 },
   error: { color: '#A52323', fontSize: 14, lineHeight: 20 },

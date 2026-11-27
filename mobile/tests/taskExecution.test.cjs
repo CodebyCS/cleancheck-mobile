@@ -53,6 +53,45 @@ const record = {
   id: 18, task_id: 5, user_id: 7, ...baseSubmission,
   send_state: 'confirmed', confirmed_at: '2026-11-27T12:00:00Z',
 };
+const checklist = {
+  task_id: 5,
+  checklist_template_id: 12,
+  name: 'Limpeza de saída',
+  version: 3,
+  required_total: 1,
+  required_done: 0,
+  completed: false,
+  items: [{ id: 31, position: 1, label: 'Verificar cozinha', required: true, done: false, done_at: null, done_by: null }],
+};
+
+test('carrega checklist versionada da tarefa e permite ausência de template', async () => {
+  nextPayload = { data: checklist };
+  nextStatus = 200;
+  const result = await api.getMyTaskChecklist(5, async () => new Response(JSON.stringify(nextPayload), { status: nextStatus }));
+  assert.deepEqual(result, checklist);
+  assert.equal(lastRequest.url, 'https://cleancheck.example/api/my/tasks/5/checklist');
+  assert.equal(lastRequest.init.headers.Accept, 'application/json');
+
+  const empty = await api.getMyTaskChecklist(5, async () => new Response(JSON.stringify({ data: null }), { status: 200 }));
+  assert.equal(empty, null);
+});
+
+test('marca item pela API com done e usa a resposta atualizada', async () => {
+  nextPayload = { data: { ...checklist, required_done: 1, completed: true, items: [{ ...checklist.items[0], done: true, done_at: '2026-11-27T12:00:00Z', done_by: { id: 7, name: 'Prestador' } }] } };
+  nextStatus = 200;
+  const result = await api.markMyTaskChecklistItem(5, 31, true, async () => new Response(JSON.stringify(nextPayload), { status: nextStatus }));
+  assert.equal(lastRequest.url, 'https://cleancheck.example/api/my/tasks/5/checklist/items/31');
+  assert.equal(lastRequest.init.method, 'PATCH');
+  assert.deepEqual(JSON.parse(lastRequest.init.body), { done: true });
+  assert.equal(result.items[0].done, true);
+  assert.equal(result.required_done, 1);
+});
+
+test('403, 404 e 422 da checklist são erros explícitos', async () => {
+  await assert.rejects(api.getMyTaskChecklist(5, async () => new Response(JSON.stringify({ message: 'Sem acesso.' }), { status: 403 })), (error) => error.code === 'FORBIDDEN');
+  await assert.rejects(api.getMyTaskChecklist(5, async () => new Response(JSON.stringify({ message: 'Não encontrado.' }), { status: 404 })), (error) => error.code === 'NOT_FOUND');
+  await assert.rejects(api.markMyTaskChecklistItem(5, 31, true, async () => new Response(JSON.stringify({ message: 'Tarefa fora de curso.' }), { status: 422 })), (error) => error.code === 'VALIDATION' && error.message === 'Tarefa fora de curso.');
+});
 
 test('submete execução autenticada e aceita confirmação 201', async () => {
   nextStatus = 201;
