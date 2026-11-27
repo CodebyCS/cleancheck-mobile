@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { AuthenticatedFetch } from '../services/tasks';
 import { BookingNotice, formatDay, listBookingNotices, markNoticeAsRead, NoticeType } from '../services/notices';
 import { useAppForeground } from '../hooks/useAppForeground';
+import { usePolling } from '../hooks/usePolling';
 
 type NoticesScreenProps = {
   authenticatedFetch: AuthenticatedFetch;
@@ -16,6 +17,9 @@ const noticeTitles: Record<NoticeType, string> = {
   task_unassigned: 'Tarefa reatribuída',
   task_cancelled: 'Tarefa cancelada',
 };
+
+// New notices show up within 30 s while this tab is open, and the list recovers on its own after a network failure.
+const NOTICE_POLL_INTERVAL_MS = 30_000;
 
 function dateLabel(value: string): string {
   const date = new Date(value);
@@ -127,13 +131,18 @@ export default function NoticesScreen({ authenticatedFetch, onOpenTask }: Notice
   const [busyId, setBusyId] = useState<number | null>(null);
   const request = useRef(0);
 
-  const refresh = useCallback(async () => {
+  // quiet: automatic check; the messages stay on screen until a check succeeds.
+  const refresh = useCallback(async (quiet = false) => {
     const currentRequest = ++request.current;
-    setError(null);
-    setActionError(null);
+    if (!quiet) {
+      setError(null);
+      setActionError(null);
+    }
     try {
       const result = await listBookingNotices(authenticatedFetch);
       if (request.current !== currentRequest) return;
+      // Connection back: the error goes away and the notices that arrived meanwhile appear.
+      setError(null);
       setNotices(result.notices);
       setUnreadCount(result.unreadCount);
       setPage(result.currentPage);
@@ -157,6 +166,11 @@ export default function NoticesScreen({ authenticatedFetch, onOpenTask }: Notice
   // Back from the background: notices may have arrived while the app was away.
   useAppForeground(() => {
     void refresh();
+  });
+
+  usePolling(NOTICE_POLL_INTERVAL_MS, () => {
+    // Only on the first page and with nothing in progress, so it never undoes what the person is doing.
+    if (page === 1 && !loading && !refreshing && !loadingMore && busyId === null) void refresh(true);
   });
 
   function pullToRefresh() {
