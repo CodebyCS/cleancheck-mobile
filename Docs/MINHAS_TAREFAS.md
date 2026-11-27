@@ -42,17 +42,27 @@ Uma criação nova devolve `201 Created`. Repetir o mesmo payload com a mesma ch
 
 O envio bem-sucedido não altera o estado da tarefa nem a atribuição atual. Por enquanto, a API também aceita impedimentos em tarefas `completed` e `cancelled` se o prestador continuar atribuído; a regra definitiva continua pendente de decisão da equipa. Este fluxo não implementa upload de fotografias ou outras provas.
 
-## Simulação da limpeza
+## Execução, checklist e evidências (Sprint 6)
 
-Os botões de vídeo e conclusão no detalhe continuam identificados como simulação local. Não abrem a câmara, não enviam ficheiros e não alteram a tarefa na API. O estado e o progresso da lista refletem apenas dados devolvidos pela API.
+No detalhe de uma tarefa em curso, **Checklist e provas** carrega a checklist versionada da tarefa com `GET /api/my/tasks/{task}/checklist`. Mostra os itens, versão, obrigatoriedade e progresso devolvidos pela API. Cada marcação/desmarcação é guardada imediatamente com `PATCH /api/my/tasks/{task}/checklist/items/{itemId}`; os itens só são editáveis enquanto a tarefa está em curso. Uma resposta `data: null` é apresentada como ausência de checklist configurada. O fluxo está disponível para tarefas `checkout_cleaning` e `checkin_inspection`.
 
-## Validação
+Fotografias/vídeos podem ser capturados pela câmara ou selecionados na galeria e enviados para `POST /api/my/tasks/{task}/evidence`. Os IDs devolvidos pela API são mantidos internamente para associação à execução/vistoria e não são apresentados ao prestador; a confirmação só aparece depois da resposta `201`. Formatos e limites de upload seguem a validação atual da API (foto até 10 MB; vídeo até 50 MB); a app limita vídeos a 60 segundos, mas a API de produção não valida duração.
 
-- `npx.cmd tsc --noEmit` passou. O projeto não define o script `npm run lint`.
-- `npm test` não está disponível: o `package.json` não define o script `test` nem existe runner configurado neste checkout.
-- O typecheck foi executado após a integração de avisos. O fluxo ainda precisa de validação manual num dispositivo real com avisos reais da API.
-- Na validação anterior da agenda e autenticação, foram usados dados simulados para lista preenchida/vazia, detalhe, erros `401`/`404`, falha de rede, login, recuperação da identidade `service_provider` e ciclo de sessão no SecureStore. Estes resultados não substituem testes do novo fluxo de avisos.
-- O percurso visual num dispositivo real e a reatribuição de A para B com a API real ainda precisam de ser executados.
+As respostas da checklist versionada são persistidas item a item pela API e não são duplicadas em `responses[]` da execução. As observações continuam a ser enviadas em `POST /api/my/tasks/{task}/executions`, limitadas a 5000 caracteres. A prova anterior é associada à execução; a prova posterior, em tarefa `checkout_cleaning`, é associada a `POST /api/my/tasks/{task}/checkout-inspection` após a hora prevista de check-out.
+
+Execuções e vistorias de saída guardam a chave e o payload pendentes no SecureStore; retries repetem os mesmos dados e a mesma chave. A sessão/AuthContext limpa os pendentes ao terminar sessão. O upload binário não aceita chave idempotente; se a resposta se perder, o resultado pode ser desconhecido. A app não afirma sucesso e avisa para não repetir imediatamente, mas não consegue reconciliar automaticamente um ficheiro cujo ID não foi recebido. Ver [contrato mobile de evidências](./contratos/upload-videos.md) para limites, respostas, erros e passos de validação.
+
+A conclusão da tarefa continua a ser uma operação separada; guardar checklist ou vistoria não altera o estado da tarefa.
+
+## Validação da recuperação de envios pendentes (27/11/2026)
+
+O fluxo de execução e vistoria guarda payload e chave de idempotência no SecureStore. Se a consulta de confirmação falhar, mantém ambos para repetir o mesmo pedido; só liberta o envio pendente quando a API confirma a mesma chave. Enquanto o resultado for desconhecido, não permite iniciar outro envio. Uma confirmação de sucesso limpa o pendente.
+
+Verificações automatizadas concluídas:
+
+- `npm.cmd test` — 29 testes passaram.
+- `npx.cmd tsc --noEmit` — passou.
+- `git diff --check` — passou.
 
 ### Demonstração integrada — issue #18 (24/11/2026)
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, TextInput } from 'react-native'
 import TaskImpedimentForm from '../components/TaskImpedimentForm'
-import TaskEvidenceUploader from '../components/TaskEvidenceUploader'
+import TaskExecutionWorkflow from '../components/TaskExecutionWorkflow'
 import { taskDateLabel, taskStatusLabel, taskTypeLabel, TaskDetail } from '../services/tasks';
 import { useAuth } from '../auth/AuthContext';
 import { getMyTask, startMyTask, updateMyTaskNotes, completeMyTask, TaskError } from "../services/tasks";
@@ -246,11 +246,15 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
         </View>
       )}
 
-      {currentTask.status === 'in_progress' && (
+      {currentTask.status === 'in_progress' && ['checkout_cleaning', 'checkin_inspection'].includes(currentTask.type) && (
         <>
-          <TaskEvidenceUploader
+          <TaskExecutionWorkflow
             taskId={currentTask.id}
+            userId={session?.user.id ?? ''}
             authenticatedFetch={authenticatedFetch}
+            taskStatus={currentTask.status}
+            taskType={currentTask.type}
+            checkoutCleaning={currentTask.type === 'checkout_cleaning'}
           />
 
           <Pressable
@@ -268,6 +272,17 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
             </Text>
           </Pressable>
         </>
+      )}
+
+      {currentTask.status === 'completed' && ['checkout_cleaning', 'checkin_inspection'].includes(currentTask.type) && (
+        <TaskExecutionWorkflow
+          taskId={currentTask.id}
+          userId={session?.user.id ?? ''}
+          authenticatedFetch={authenticatedFetch}
+          taskStatus={currentTask.status}
+          taskType={currentTask.type}
+          checkoutCleaning={currentTask.type === 'checkout_cleaning'}
+        />
       )}
 
       {currentTask.status !== 'in_progress' && unsentNotes}

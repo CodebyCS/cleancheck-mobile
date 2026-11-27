@@ -1,5 +1,5 @@
 import { AuthError } from './auth';
-import { apiUrl, fetchWithTimeout } from './httpClient';
+import { apiUrl, fetchWithTimeout, HttpClientError } from './httpClient';
 import { File } from 'expo-file-system';
 
 export type TaskListItem = {
@@ -241,19 +241,346 @@ export type TaskEvidenceFile = {
   mimeType: string;
 };
 
+export type TaskEvidenceRecord = {
+  id: number;
+  kind: 'photo' | 'video';
+  mime_type: string;
+  size_bytes: number;
+};
+
+export function validateTaskEvidenceMetadata(
+  kind: 'photo' | 'video',
+  mimeType: string | null,
+  sizeBytes: number | null,
+  durationMs: number | null,
+): string | null {
+  const photoTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+  const videoTypes = ['video/mp4', 'video/quicktime'];
+  const allowed = kind === 'video' ? videoTypes : photoTypes;
+  if (!mimeType || !allowed.includes(mimeType.toLowerCase())) {
+    return kind === 'video'
+      ? 'Formato não aceite. Usa um vídeo MP4 ou MOV.'
+      : 'Formato não aceite. Usa JPG, PNG, WEBP, HEIC ou HEIF.';
+  }
+  if (sizeBytes !== null && sizeBytes > (kind === 'video' ? 50 : 10) * 1024 * 1024) {
+    return kind === 'video' ? 'O vídeo não pode ter mais de 50 MB.' : 'A fotografia não pode ter mais de 10 MB.';
+  }
+  if (kind === 'video' && durationMs !== null && durationMs > 60_000) {
+    return 'O vídeo não pode ter mais de 60 segundos.';
+  }
+  return null;
+}
+
+export type TaskExecutionResponse = {
+  key: string;
+  value: string | number | boolean | null;
+};
+
+export type TaskExecutionSubmission = {
+  idempotency_key: string;
+  responses: TaskExecutionResponse[];
+  observations: string | null;
+  evidence_ids: number[];
+};
+
+export type TaskExecutionRecord = TaskExecutionSubmission & {
+  id: number;
+  task_id: number;
+  user_id: number;
+  send_state?: 'confirmed';
+  confirmed_at?: string | null;
+  recorded_at?: string | null;
+};
+
+export type TaskChecklistItem = {
+  id: number;
+  position: number;
+  label: string;
+  required: boolean;
+  done: boolean;
+  done_at: string | null;
+  done_by: { id: number; name: string } | null;
+};
+
+export type TaskChecklist = {
+  task_id: number;
+  checklist_template_id: number;
+  name: string;
+  version: number;
+  required_total: number;
+  required_done: number;
+  completed: boolean;
+  items: TaskChecklistItem[];
+};
+
+export class TaskChecklistError extends Error {
+  constructor(
+    public readonly code: 'CONFIGURATION' | 'NETWORK' | 'SESSION_EXPIRED' | 'FORBIDDEN' | 'NOT_FOUND' | 'VALIDATION' | 'SERVER' | 'INVALID_RESPONSE',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'TaskChecklistError';
+  }
+}
+
+function isTaskChecklistItem(value: unknown): value is TaskChecklistItem {
+  if (!isRecord(value)) return false;
+  const doneBy = value.done_by;
+  return Number.isInteger(value.id) && Number.isInteger(value.position)
+    && typeof value.label === 'string' && typeof value.required === 'boolean'
+    && typeof value.done === 'boolean'
+    && (value.done_at === null || typeof value.done_at === 'string')
+    && (doneBy === null || (isRecord(doneBy) && Number.isInteger(doneBy.id) && typeof doneBy.name === 'string'));
+}
+
+function isTaskChecklist(value: unknown, taskId: number): value is TaskChecklist {
+  return isRecord(value) && value.task_id === taskId
+    && Number.isInteger(value.checklist_template_id) && typeof value.name === 'string'
+    && Number.isInteger(value.version) && Number.isInteger(value.required_total)
+    && Number.isInteger(value.required_done) && typeof value.completed === 'boolean'
+    && Array.isArray(value.items) && value.items.every(isTaskChecklistItem);
+}
+
+async function checklistResponse(response: Response, taskId: number): Promise<TaskChecklist | null> {
+  let payload: unknown = null;
+  try { payload = await response.json() as unknown; } catch { /* handled below */ }
+  const apiMessage = isRecord(payload) && typeof payload.message === 'string' ? payload.message : '';
+  if (response.status === 401) throw new TaskChecklistError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+  if (response.status === 403) throw new TaskChecklistError('FORBIDDEN', apiMessage || 'Já não tens acesso atual a esta tarefa.');
+  if (response.status === 404) throw new TaskChecklistError('NOT_FOUND', apiMessage || 'Esta tarefa ou checklist já não está disponível.');
+  if (response.status === 422) throw new TaskChecklistError('VALIDATION', apiMessage || 'A API rejeitou a alteração da checklist.');
+  if (!response.ok) throw new TaskChecklistError('SERVER', apiMessage || 'Não foi possível guardar a checklist. Tenta novamente.');
+  if (!isRecord(payload) || !('data' in payload)) {
+    throw new TaskChecklistError('INVALID_RESPONSE', 'A API devolveu uma checklist inválida.');
+  }
+  if (payload.data === null) return null;
+  if (!isTaskChecklist(payload.data, taskId)) {
+    throw new TaskChecklistError('INVALID_RESPONSE', 'A API devolveu uma checklist inválida.');
+  }
+  return payload.data;
+}
+
+async function checklistRequest(
+  taskId: number,
+  path: string,
+  authenticatedFetch: AuthenticatedFetch,
+  init: RequestInit = {},
+): Promise<TaskChecklist | null> {
+  let url: string;
+  try { url = apiUrl(path); }
+  catch { throw new TaskChecklistError('CONFIGURATION', 'O endereço da API não está configurado.'); }
+
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url, init, authenticatedFetch);
+  } catch (error) {
+    if (error instanceof AuthError && error.code === 'SESSION_EXPIRED') {
+      throw new TaskChecklistError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+    }
+    if (error instanceof AuthError && error.code === 'FORBIDDEN') {
+      throw new TaskChecklistError('FORBIDDEN', 'Já não tens acesso atual a esta tarefa.');
+    }
+    if (error instanceof HttpClientError && error.code === 'CONFIGURATION') {
+      throw new TaskChecklistError('CONFIGURATION', 'O endereço da API não está configurado.');
+    }
+    throw new TaskChecklistError('NETWORK', 'Não foi possível confirmar a checklist. Verifica a ligação e tenta novamente.');
+  }
+  return checklistResponse(response, taskId);
+}
+
+export function getMyTaskChecklist(
+  taskId: number,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<TaskChecklist | null> {
+  return checklistRequest(taskId, `/my/tasks/${taskId}/checklist`, authenticatedFetch, {
+    headers: { Accept: 'application/json' },
+  });
+}
+
+export function markMyTaskChecklistItem(
+  taskId: number,
+  itemId: number,
+  done: boolean,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<TaskChecklist | null> {
+  return checklistRequest(taskId, `/my/tasks/${taskId}/checklist/items/${itemId}`, authenticatedFetch, {
+    method: 'PATCH',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ done }),
+  });
+}
+
+export class TaskExecutionError extends Error {
+  constructor(
+    public readonly code: 'CONFIGURATION' | 'NETWORK' | 'SESSION_EXPIRED' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT' | 'VALIDATION' | 'SERVER' | 'INVALID_RESPONSE',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'TaskExecutionError';
+  }
+}
+
 export async function uploadMyTaskEvidence(
   id: number,
   file: TaskEvidenceFile,
   authenticatedFetch: AuthenticatedFetch,
-): Promise<void> {
+): Promise<TaskEvidenceRecord> {
   const formData = new FormData();
   formData.append('file', new File(file.uri), file.fileName);
 
-  await getJson(`/my/tasks/${id}/evidence`, authenticatedFetch, {
-    method: 'POST',
-    headers: { Accept: 'application/json' },
-    body: formData,
-  });
+  let url: string;
+  try { url = apiUrl(`/my/tasks/${id}/evidence`); }
+  catch { throw new TaskError('CONFIGURATION', 'O endereço da API não está configurado.'); }
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url, { method: 'POST', headers: { Accept: 'application/json' }, body: formData }, authenticatedFetch);
+  } catch (error) {
+    if (error instanceof AuthError && error.code === 'SESSION_EXPIRED') throw new TaskError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+    if (error instanceof AuthError && error.code === 'FORBIDDEN') throw new TaskError('FORBIDDEN', 'Já não tens acesso atual a esta tarefa.');
+    if (error instanceof HttpClientError && error.code === 'CONFIGURATION') throw new TaskError('CONFIGURATION', 'O endereço da API não está configurado.');
+    throw new TaskError('NETWORK', 'Não foi possível confirmar o envio do ficheiro.');
+  }
+  let payload: unknown = null;
+  try { payload = await response.json() as unknown; } catch { /* handled below */ }
+  const message = isRecord(payload) && typeof payload.message === 'string' ? payload.message : '';
+  const fileError = isRecord(payload) && isRecord(payload.errors)
+    ? payload.errors.file
+    : undefined;
+  const validationMessage = typeof fileError === 'string'
+    ? fileError
+    : Array.isArray(fileError) && typeof fileError[0] === 'string' ? fileError[0] : '';
+  if (response.status === 401) throw new TaskError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+  if (response.status === 403) throw new TaskError('FORBIDDEN', message || 'Já não tens acesso atual a esta tarefa.');
+  if (response.status === 404) throw new TaskError('NOT_FOUND', message || 'Esta tarefa já não está disponível.');
+  if (response.status === 422) throw new TaskError('SERVER', validationMessage || message || 'O ficheiro foi rejeitado pela API.');
+  if (!response.ok) throw new TaskError('SERVER', message || 'A API não conseguiu guardar o ficheiro.');
+  if (!isRecord(payload) || !isRecord(payload.data)) {
+    throw new TaskError('INVALID_RESPONSE', 'A API não confirmou o ficheiro enviado.');
+  }
+  const record = payload.data;
+  if (!Number.isInteger(record.id) || !Number.isInteger(record.size_bytes)
+    || (record.kind !== 'photo' && record.kind !== 'video')
+    || typeof record.mime_type !== 'string') {
+    throw new TaskError('INVALID_RESPONSE', 'A API não confirmou o ficheiro enviado.');
+  }
+  return record as TaskEvidenceRecord;
+}
+
+function isTaskExecutionRecord(value: unknown, taskId: number, key: string): value is TaskExecutionRecord {
+  if (!isRecord(value)) return false;
+  return Number.isInteger(value.id) && value.task_id === taskId
+    && typeof value.user_id === 'number' && value.idempotency_key === key
+    && Array.isArray(value.responses) && Array.isArray(value.evidence_ids)
+    && (value.send_state === undefined || value.send_state === 'confirmed');
+}
+
+export async function submitMyTaskExecution(
+  taskId: number,
+  submission: TaskExecutionSubmission,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<{ record: TaskExecutionRecord; repeated: boolean }> {
+  let url: string;
+  try { url = apiUrl(`/my/tasks/${taskId}/executions`); }
+  catch { throw new TaskExecutionError('CONFIGURATION', 'O endereço da API não está configurado.'); }
+
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(submission),
+    }, authenticatedFetch);
+  } catch (error) {
+    if (error instanceof AuthError && error.code === 'SESSION_EXPIRED') {
+      throw new TaskExecutionError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+    }
+    if (error instanceof HttpClientError && error.code === 'CONFIGURATION') {
+      throw new TaskExecutionError('CONFIGURATION', 'O endereço da API não está configurado.');
+    }
+    throw new TaskExecutionError('NETWORK', 'Não foi possível confirmar o envio da execução. Mantivemos os dados e a chave; tenta novamente.');
+  }
+
+  let payload: unknown;
+  try { payload = await response.json() as unknown; }
+  catch { payload = null; }
+  const apiMessage = isRecord(payload) && typeof payload.message === 'string' ? payload.message : '';
+  if (response.status === 401) throw new TaskExecutionError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+  if (response.status === 403) throw new TaskExecutionError('FORBIDDEN', apiMessage || 'Já não tens acesso atual a esta tarefa.');
+  if (response.status === 404) throw new TaskExecutionError('NOT_FOUND', apiMessage || 'Esta tarefa já não está disponível.');
+  if (response.status === 409) throw new TaskExecutionError('CONFLICT', apiMessage || 'A chave de envio já está associada a outros dados. Mantivemos o envio pendente.');
+  if (response.status === 422) throw new TaskExecutionError('VALIDATION', apiMessage || 'A API rejeitou os dados. Revê as respostas e tenta novamente.');
+  if (response.status !== 200 && response.status !== 201) throw new TaskExecutionError('SERVER', apiMessage || 'Não foi possível guardar a execução.');
+  if (!isRecord(payload) || !isTaskExecutionRecord(payload.data, taskId, submission.idempotency_key)) {
+    throw new TaskExecutionError('INVALID_RESPONSE', 'A API não confirmou a execução. Mantivemos os dados e a chave para repetires o pedido.');
+  }
+  return { record: payload.data, repeated: response.status === 200 };
+}
+
+export async function submitMyTaskCheckoutInspection(
+  taskId: number,
+  submission: TaskExecutionSubmission,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<{ record: TaskExecutionRecord; repeated: boolean }> {
+  let url: string;
+  try { url = apiUrl(`/my/tasks/${taskId}/checkout-inspection`); }
+  catch { throw new TaskExecutionError('CONFIGURATION', 'O endereço da API não está configurado.'); }
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(submission),
+    }, authenticatedFetch);
+  } catch (error) {
+    if (error instanceof AuthError && error.code === 'SESSION_EXPIRED') throw new TaskExecutionError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+    if (error instanceof HttpClientError && error.code === 'CONFIGURATION') throw new TaskExecutionError('CONFIGURATION', 'O endereço da API não está configurado.');
+    throw new TaskExecutionError('NETWORK', 'Não foi possível confirmar a vistoria de saída. Mantivemos os dados e a chave; tenta novamente.');
+  }
+  let payload: unknown;
+  try { payload = await response.json() as unknown; } catch { payload = null; }
+  const apiMessage = isRecord(payload) && typeof payload.message === 'string' ? payload.message : '';
+  if (response.status === 401) throw new TaskExecutionError('SESSION_EXPIRED', 'A sessão expirou. Inicia sessão novamente.');
+  if (response.status === 403) throw new TaskExecutionError('FORBIDDEN', apiMessage || 'Já não tens acesso atual a esta tarefa.');
+  if (response.status === 404) throw new TaskExecutionError('NOT_FOUND', apiMessage || 'Esta tarefa já não está disponível.');
+  if (response.status === 409) throw new TaskExecutionError('CONFLICT', apiMessage || 'Já existe uma vistoria de saída diferente para esta tarefa.');
+  if (response.status === 422) throw new TaskExecutionError('VALIDATION', apiMessage || 'A vistoria ainda não pode ser registada. Confirma o prazo e os dados.');
+  if (response.status !== 200 && response.status !== 201) throw new TaskExecutionError('SERVER', apiMessage || 'Não foi possível guardar a vistoria de saída.');
+  if (!isRecord(payload) || !isTaskExecutionRecord(payload.data, taskId, submission.idempotency_key)) {
+    throw new TaskExecutionError('INVALID_RESPONSE', 'A API não confirmou a vistoria. Mantivemos os dados e a chave para repetires o pedido.');
+  }
+  return { record: payload.data, repeated: response.status === 200 };
+}
+
+export async function getMyTaskCheckoutInspection(
+  taskId: number,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<TaskExecutionRecord | null> {
+  const payload = await getJson(`/my/tasks/${taskId}/checkout-inspection`, authenticatedFetch);
+  if (!isRecord(payload) || !('data' in payload)) {
+    throw new TaskError('INVALID_RESPONSE', 'A resposta da vistoria de saída é inválida.');
+  }
+  if (payload.data === null) return null;
+  if (!isTaskExecutionRecord(payload.data, taskId, (payload.data as Record<string, unknown>).idempotency_key as string)) {
+    throw new TaskError('INVALID_RESPONSE', 'A resposta da vistoria de saída é inválida.');
+  }
+  return payload.data;
+}
+
+export async function listMyTaskExecutions(
+  taskId: number,
+  authenticatedFetch: AuthenticatedFetch,
+): Promise<TaskExecutionRecord[]> {
+  const payload = await getJson(`/my/tasks/${taskId}/executions`, authenticatedFetch);
+  if (!isRecord(payload) || !Array.isArray(payload.data)) {
+    throw new TaskError('INVALID_RESPONSE', 'A lista de execuções devolvida pela API é inválida.');
+  }
+  const records = payload.data;
+  if (!records.every((record) => isRecord(record)
+    && isTaskExecutionRecord(record, taskId, typeof record.idempotency_key === 'string' ? record.idempotency_key : '')
+    && record.send_state === 'confirmed')) {
+    throw new TaskError('INVALID_RESPONSE', 'A lista de execuções devolvida pela API é inválida.');
+  }
+  return records as TaskExecutionRecord[];
 }
 
 export function taskTypeLabel(type: string): string {

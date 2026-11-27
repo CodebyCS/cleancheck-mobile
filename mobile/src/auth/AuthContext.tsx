@@ -2,6 +2,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { AuthError, AuthUser, getCurrentUser, login, LoginCredentials, logout } from '../services/auth';
 import { readAuthSession, removeAuthSession, saveAuthSession } from '../services/authTokenStorage';
 import { clearPendingTaskImpediments } from '../services/pendingTaskImpediments';
+import { clearPendingTaskExecutions } from '../services/pendingTaskExecutions';
 import { Alert } from 'react-native';
 import { fetch as expoFetch } from 'expo/fetch';
 
@@ -29,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!active || !stored) return;
 
       if (Date.parse(stored.expiresAt) <= Date.now()) {
-        await removeAuthSession();
+        await Promise.allSettled([removeAuthSession(), clearPendingTaskExecutions()]);
         return;
       }
 
@@ -40,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // O token pode ter expirado enquanto o pedido estava em curso.
       if (Date.parse(stored.expiresAt) <= Date.now()) {
-        await removeAuthSession();
+        await Promise.allSettled([removeAuthSession(), clearPendingTaskExecutions()]);
         return;
       }
 
@@ -67,9 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : 'Não foi possível recuperar a sessão.';
 
       if (invalidSession) {
-        try {
-          await removeAuthSession();
-        } catch {
+        const cleanup = await Promise.allSettled([removeAuthSession(), clearPendingTaskExecutions()]);
+        if (cleanup.some((result) => result.status === 'rejected')) {
           message += ' Também não foi possível limpar a sessão guardada.';
         }
       }
@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // A sessão e os rascunhos de impedimento pertencem à identidade atual.
   // O estado é sempre limpo mesmo se o armazenamento seguro não responder.
   try {
-    await Promise.allSettled([removeAuthSession(), clearPendingTaskImpediments()]);
+    await Promise.allSettled([removeAuthSession(), clearPendingTaskImpediments(), clearPendingTaskExecutions()]);
   } finally {
     setSession(null);
   }
