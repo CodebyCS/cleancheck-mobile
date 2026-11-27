@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { isToday, taskDateLabel, taskStatusLabel, taskTypeLabel, TaskListItem } from '../services/tasks';
 
@@ -13,20 +14,47 @@ type TasksScreenProps = {
   showPrevious?: boolean;
 };
 
+const COMPLETED_DASHBOARD_MS = 30 * 60 * 1000;
+const COMPLETED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+function completionAgeMs(task: TaskListItem, nowMs: number): number | null {
+  if (!task.completed_at) return null;
+
+  const completedAt = Date.parse(task.completed_at);
+  return Number.isFinite(completedAt) ? nowMs - completedAt : null;
+}
+
 function TaskCard({ task, onPress }: { task: TaskListItem; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Abrir tarefa em ${task.property ?? 'imóvel sem nome'}, ${taskDateLabel(task.scheduled_start_at)}`}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.card, task.missing_evidence && styles.missingEvidenceCard, pressed && styles.pressed]}
     >
       <View style={styles.cardHeader}>
         <Text style={styles.property}>{task.property ?? 'Imóvel sem nome'}</Text>
-        <Text style={[styles.status, task.status === 'completed' && styles.statusDone]}>{taskStatusLabel(task.status)}</Text>
+        <Text style={styles.taskId}>Tarefa #{task.id}</Text>
+        <Text
+          style={[
+            styles.status,
+            task.status === 'in_progress' && styles.statusInProgress,
+            task.status === 'completed' && styles.statusDone,
+          ]}
+        >
+          {taskStatusLabel(task.status)}
+        </Text>
       </View>
-      <Text style={styles.meta}>{taskDateLabel(task.scheduled_start_at)}</Text>
+      <Text style={styles.meta}>
+        Pode começar a limpeza: {taskDateLabel(task.scheduled_start_at)}
+      </Text>
+      <Text style={styles.meta}>
+        Concluir até: {taskDateLabel(task.scheduled_end_at)}
+      </Text>
       <Text style={styles.type}>{taskTypeLabel(task.type)}</Text>
+      {task.missing_evidence && (
+        <Text style={styles.missingEvidenceLabel}>Falta evidência</Text>
+      )}
       <Text style={styles.open}>Ver detalhes  ›</Text>
     </Pressable>
   );
@@ -43,13 +71,59 @@ export default function TasksScreen({
   showProgress = true,
   showPrevious = true,
 }: TasksScreenProps) {
-  const now = new Date();
-  const orderedTasks = [...tasks].sort((left, right) => Date.parse(left.scheduled_start_at) - Date.parse(right.scheduled_start_at));
-  const today = orderedTasks.filter((task) => isToday(task.scheduled_start_at, now));
-  const upcoming = orderedTasks.filter((task) => new Date(task.scheduled_start_at).getTime() > now.getTime() && !isToday(task.scheduled_start_at, now));
-  const previous = orderedTasks.filter((task) => new Date(task.scheduled_start_at).getTime() < now.getTime() && !isToday(task.scheduled_start_at, now));
+  const [taskFilter, setTaskFilter] = useState<'dashboard' | 'in_progress' | 'completed'>('dashboard');
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const now = new Date(currentTime);
+  const orderedTasks = [...tasks].sort(
+    (left, right) =>
+      Date.parse(left.scheduled_start_at) - Date.parse(right.scheduled_start_at),
+  );
+
+  const completedTasks = orderedTasks.filter((task) => {
+    if (task.status !== 'completed') return false;
+    const age = completionAgeMs(task, currentTime);
+    return age === null || age <= COMPLETED_RETENTION_MS;
+  });
+
+  const dashboardTasks = orderedTasks.filter((task) => {
+    if (task.status !== 'completed') return true;
+
+    const age = completionAgeMs(task, currentTime);
+    if (age !== null && age > COMPLETED_RETENTION_MS) return false;
+
+    return task.missing_evidence || age === null || age <= COMPLETED_DASHBOARD_MS;
+  });
+
+  const today = dashboardTasks.filter((task) => isToday(task.scheduled_start_at, now));
+  const upcoming = dashboardTasks.filter(
+    (task) =>
+      new Date(task.scheduled_start_at).getTime() > currentTime
+      && !isToday(task.scheduled_start_at, now),
+  );
+  const previous = dashboardTasks.filter(
+    (task) =>
+      new Date(task.scheduled_start_at).getTime() < currentTime
+      && !isToday(task.scheduled_start_at, now),
+  );
   const completedToday = today.filter((task) => task.status === 'completed').length;
-  const visibleTasks = showPrevious ? tasks : [...today, ...upcoming];
+    const inProgressTasks = orderedTasks.filter(
+    (task) => task.status === 'in_progress',
+  );
+
+  const visibleTasks =
+    taskFilter === 'completed'
+      ? completedTasks
+      : taskFilter === 'in_progress'
+        ? inProgressTasks
+        : showPrevious
+          ? dashboardTasks
+          : [...today, ...upcoming];
 
   return (
     <ScrollView contentContainerStyle={styles.page} contentInsetAdjustmentBehavior="automatic">
@@ -64,7 +138,43 @@ export default function TasksScreen({
       </View>
       <Text style={styles.date}>{new Intl.DateTimeFormat('pt-PT', { dateStyle: 'full' }).format(now).toUpperCase()}</Text>
       <Text style={styles.title}>{title}</Text>
-      {showProgress && (
+
+      <View style={styles.filterRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: taskFilter === 'dashboard' }}
+          onPress={() => setTaskFilter('dashboard')}
+          style={[styles.filterButton, taskFilter === 'dashboard' && styles.filterButtonSelected]}
+        >
+          <Text style={[styles.filterButtonText, taskFilter === 'dashboard' && styles.filterButtonTextSelected]}>
+            Painel
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: taskFilter === 'in_progress' }}
+          onPress={() => setTaskFilter('in_progress')}
+          style={[styles.filterButton, taskFilter === 'in_progress' && styles.filterButtonSelected]}
+        >
+          <Text style={[styles.filterButtonText, taskFilter === 'in_progress' && styles.filterButtonTextSelected]}>
+            Em curso ({inProgressTasks.length})
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: taskFilter === 'completed' }}
+          onPress={() => setTaskFilter('completed')}
+          style={[styles.filterButton, taskFilter === 'completed' && styles.filterButtonSelected]}
+        >
+          <Text style={[styles.filterButtonText, taskFilter === 'completed' && styles.filterButtonTextSelected]}>
+            Concluídas ({completedTasks.length})
+          </Text>
+        </Pressable>
+      </View>
+
+      {showProgress && taskFilter === 'dashboard' && (
         <View style={styles.progressCard}>
           <Text style={styles.progressLabel}>Progresso de hoje</Text>
           <Text style={styles.progressValue}>{completedToday}/{today.length}</Text>
@@ -82,12 +192,30 @@ export default function TasksScreen({
       ) : (
         <>
           {error && <Text style={[styles.error, styles.banner]} accessibilityLiveRegion="polite">{error}</Text>}
-          <Text style={styles.sectionTitle}>Hoje</Text>
-          {today.length ? today.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />) : <Text style={styles.emptyText}>Sem tarefas para hoje.</Text>}
-          <Text style={styles.sectionTitle}>Próximas</Text>
-          {upcoming.length ? upcoming.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />) : <Text style={styles.emptyText}>Sem tarefas futuras.</Text>}
-          {showPrevious && previous.length > 0 && <Text style={styles.sectionTitle}>Anteriores</Text>}
-          {showPrevious && previous.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />)}
+          {taskFilter === 'completed' ? (
+            <>
+              <Text style={styles.sectionTitle}>Concluídas</Text>
+              {completedTasks.map((task) => (
+                <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />
+              ))}
+            </>
+          ) : taskFilter === 'in_progress' ? (
+            <>
+              <Text style={styles.sectionTitle}>Em curso</Text>
+              {inProgressTasks.map((task) => (
+                <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />
+              ))}
+            </>
+          ) : (
+            <>
+              <Text style={styles.sectionTitle}>Hoje</Text>
+              {today.length ? today.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />) : <Text style={styles.emptyText}>Sem tarefas para hoje.</Text>}
+              <Text style={styles.sectionTitle}>Próximas</Text>
+              {upcoming.length ? upcoming.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />) : <Text style={styles.emptyText}>Sem tarefas futuras.</Text>}
+              {showPrevious && previous.length > 0 && <Text style={styles.sectionTitle}>Anteriores</Text>}
+              {showPrevious && previous.map((task) => <TaskCard key={task.id} task={task} onPress={() => onOpenTask(task)} />)}
+            </>
+          )}
         </>
       )}
     </ScrollView>
@@ -116,9 +244,18 @@ const styles = StyleSheet.create({
   property: { flex: 1, color: '#172B4D', fontSize: 18, fontWeight: '800' },
   status: { color: '#8A5700', backgroundColor: '#FFF1C7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, fontSize: 11, fontWeight: '800', overflow: 'hidden' },
   statusDone: { color: '#146B3A', backgroundColor: '#DFF5E7' },
+  statusInProgress: { color: '#174EA6', backgroundColor: '#DCEBFF' },
+  taskId: { color: '#53657D', fontSize: 12, fontWeight: '700', marginTop: 4 },
   meta: { color: '#26364B', fontSize: 14, fontWeight: '700', marginTop: 13 },
   type: { color: '#53657D', fontSize: 14, marginTop: 8 },
   open: { color: '#1769E8', fontSize: 14, fontWeight: '800', marginTop: 13 },
+  filterRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  filterButton: { borderWidth: 1, borderColor: '#D4DCE8', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#FFFFFF' },
+  filterButtonSelected: { borderColor: '#1769E8', backgroundColor: '#E7F0FF' },
+  filterButtonText: { color: '#53657D', fontSize: 14, fontWeight: '700' },
+  filterButtonTextSelected: { color: '#1769E8' },
+  missingEvidenceCard: { borderColor: '#B42318', borderWidth: 2 },
+  missingEvidenceLabel: { color: '#B42318', fontSize: 13, fontWeight: '800', marginTop: 10 },
   messageCard: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 22 },
   error: { color: '#A52323', fontSize: 16, lineHeight: 22 },
   emptyTitle: { color: '#172B4D', fontSize: 18, fontWeight: '800', marginBottom: 6 },

@@ -45,6 +45,20 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
   });
 
   async function handleStart() {
+    const startAt = Date.parse(currentTask.scheduled_start_at);
+
+    if (!Number.isFinite(startAt)) {
+      setActionError('Não foi possível confirmar o horário permitido para iniciar esta tarefa.');
+      return;
+    }
+
+    if (Date.now() < startAt) {
+      setActionError(
+        `Esta tarefa só pode ser iniciada a partir de ${taskDateLabel(currentTask.scheduled_start_at)}.`,
+      );
+      return;
+    }
+
     setStarting(true);
     setActionError('');
 
@@ -175,12 +189,20 @@ export default function TaskDetailScreen({ task, onBack, backLabel = 'Minhas Tar
           <Text style={styles.title}>{currentTask.property ?? 'Imóvel sem nome'}</Text>
           <Text style={styles.address}>{currentTask.address ?? 'Morada não disponível'}</Text>
         </View>
-        <Text style={[styles.status, alreadyCompleted && styles.statusDone]}>{taskStatusLabel(currentTask.status)}</Text>
+        <Text
+          style={[
+            styles.status,
+            currentTask.status === 'in_progress' && styles.statusInProgress,
+            alreadyCompleted && styles.statusDone,
+          ]}
+        >
+          {taskStatusLabel(currentTask.status)}
+        </Text>
       </View>
 
       <View style={styles.infoCard}>
-        <View><Text style={styles.infoLabel}>Data e hora</Text><Text style={styles.infoValue}>{taskDateLabel(currentTask.scheduled_start_at)}</Text></View>
-        <View><Text style={styles.infoLabel}>Prazo</Text><Text style={styles.infoValue}>{taskDateLabel(currentTask.scheduled_end_at)}</Text></View>
+        <View><Text style={styles.infoLabel}>POde começar a limpeza</Text><Text style={styles.infoValue}>{taskDateLabel(currentTask.scheduled_start_at)}</Text></View>
+        <View><Text style={styles.infoLabel}>Concluir até</Text><Text style={styles.infoValue}>{taskDateLabel(currentTask.scheduled_end_at)}</Text></View>
         <View><Text style={styles.infoLabel}>Tipo</Text><Text style={styles.infoValue}>{taskTypeLabel(currentTask.type)}</Text></View>
         {currentTask.started_at && <View><Text style={styles.infoLabel}>Início registado</Text><Text style={styles.infoValue}>{taskDateLabel(currentTask.started_at)}</Text></View>}
         {currentTask.completed_at && <View><Text style={styles.infoLabel}>Conclusão registada</Text><Text style={styles.infoValue}>{taskDateLabel(currentTask.completed_at)}</Text></View>}
@@ -287,6 +309,7 @@ const styles = StyleSheet.create({
   address: { color: '#53657D', fontSize: 15, lineHeight: 21, marginTop: 7 },
   status: { color: '#8A5700', backgroundColor: '#FFF1C7', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 12, fontSize: 11, fontWeight: '800', overflow: 'hidden' },
   statusDone: { color: '#146B3A', backgroundColor: '#DFF5E7' },
+  statusInProgress: { color: '#174EA6', backgroundColor: '#DCEBFF' },
   infoCard: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 17, gap: 14, borderWidth: 1, borderColor: '#E5EAF2' },
   infoLabel: { color: '#8290A3', fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
   infoValue: { color: '#26364B', fontSize: 16, fontWeight: '700', marginTop: 3 },
