@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import InfoRow from '../components/InfoRow';
+import MonthlySummaryCard from '../components/MonthlySummaryCard';
 import ProfileAvatar from '../components/ProfileAvatar';
 import { AuthError } from '../services/auth';
 import CameraTrialScreen from './CameraTrialScreen';
@@ -24,6 +25,7 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showCameraTrial, setShowCameraTrial] = useState(false);
+  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -51,6 +53,7 @@ export default function ProfileScreen() {
   // The signed photo URL expires after a few minutes, so pulling refreshes it.
   async function handleRefresh() {
     setRefreshing(true);
+    setSummaryRefreshKey((key) => key + 1);
     await loadProfile();
     setRefreshing(false);
   }
@@ -130,6 +133,8 @@ export default function ProfileScreen() {
           <InfoRow label="Morada" value={formatAddress(state.profile)} emptyText="Não indicada" />
         </View>
       )}
+
+      {state.status === 'ready' && <MonthlySummaryCard refreshKey={summaryRefreshKey} />}
 
       {state.status === 'ready' && (
         <Pressable
