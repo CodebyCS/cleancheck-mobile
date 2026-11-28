@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -33,13 +33,17 @@ export default function MonthlySummaryCard({ refreshKey }: MonthlySummaryCardPro
   const [month, setMonth] = useState(() => currentMonth());
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [openEntryId, setOpenEntryId] = useState<number | null>(null);
+  // Only the latest request may update the card: a slow answer for a previous month
+  // (or from an earlier retry) must never replace the month on screen.
+  const latestRequest = useRef(0);
 
-  const load = useCallback(async (signal: { cancelled: boolean }) => {
+  const load = useCallback(async () => {
+    const request = ++latestRequest.current;
     try {
       const summary = await getMonthlySummary(authenticatedFetch, month);
-      if (!signal.cancelled) setState({ status: 'ready', summary });
+      if (request === latestRequest.current) setState({ status: 'ready', summary });
     } catch (error) {
-      if (signal.cancelled) return;
+      if (request !== latestRequest.current) return;
       const code = error instanceof MonthlySummaryError ? error.code : null;
       setState({
         status: 'error',
@@ -50,18 +54,18 @@ export default function MonthlySummaryCard({ refreshKey }: MonthlySummaryCardPro
   }, [authenticatedFetch, month]);
 
   useEffect(() => {
-    const signal = { cancelled: false };
     setState({ status: 'loading' });
     setOpenEntryId(null);
-    void load(signal);
+    void load();
     return () => {
-      signal.cancelled = true;
+      // Leaving the month or the screen makes any answer still on its way outdated.
+      latestRequest.current++;
     };
   }, [load, refreshKey]);
 
   function retry() {
     setState({ status: 'loading' });
-    void load({ cancelled: false });
+    void load();
   }
 
   const isCurrentMonth = month === currentMonth();
